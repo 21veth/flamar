@@ -7,6 +7,7 @@ class LoginView(QWidget):
         super().__init__()
         self.setWindowTitle('Flamar Analytics - Login')
         self.setMinimumSize(600, 500)
+        self.setStyleSheet('background-color: #6A1B9A;')
         
         # Layout principal
         layout = QVBoxLayout()
