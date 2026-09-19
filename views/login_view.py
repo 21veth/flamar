@@ -12,6 +12,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
+from views.home_view import HomeView
+
 class LoginView(QWidget):
     def __init__(self):
         super().__init__()
@@ -100,6 +102,9 @@ class LoginView(QWidget):
             }
         ''')
 
+        self.home_view = HomeView()
+        self.home_view.hide()
+
         page = QFrame(objectName='page')
         layout = QHBoxLayout(page)
         layout.setContentsMargins(34, 34, 34, 34)
@@ -178,3 +183,5 @@ class LoginView(QWidget):
             return
         
         QMessageBox.information(self, 'Éxito', f'Bienvenido {username}!')
+        self.home_view.show()
+        self.hide()
