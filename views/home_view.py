@@ -1,228 +1,298 @@
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QFrame, QLabel, QPushButton,
-    QGridLayout, QProgressBar,
+    QButtonGroup, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton,
+    QScrollArea, QStackedWidget, QVBoxLayout, QWidget,
 )
-from PySide6.QtCore import Qt
+
+from views.ui_components import BarChart, BrandWidget, DonutChart, LineChart
+from views.analytics_views import PredictionsView, PurchasePatternsView
+from views.customer_views import ConsumersView, SegmentationView
+from views.data_views import ImportDataView, PreprocessingView
+from views.decision_views import RecommendationsView, ReportsView
 
 
 class HomeView(QWidget):
+    logout_requested = Signal()
+
+    NAV_ITEMS = (
+        ('▦', 'Dashboard', 'dashboard'),
+        ('⇧', 'Importar datos', 'importar'),
+        ('◉', 'Consumidores', 'consumidores'),
+        ('⌘', 'Preprocesamiento', 'preprocesamiento'),
+        ('◌', 'Segmentación', 'segmentacion'),
+        ('⌁', 'Patrones de compra', 'patrones'),
+        ('↗', 'Predicciones', 'predicciones'),
+        ('☆', 'Recomendaciones', 'recomendaciones'),
+        ('▤', 'Reportes', 'reportes'),
+    )
+
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('Flamar Analytics - Inicio')
-        self.setMinimumSize(1020, 640)
-        self.setStyleSheet('''
-            QWidget { color: #172b4d; font-family: "Segoe UI Variable", "Segoe UI"; }
-            QWidget#workspace { background: #f5f8fc; }
-            QFrame#sidebar { background: #102a43; }
-            QLabel#brand_mark { color: #102a43; background: #57d3c7; border-radius: 16px; font-size: 19px; font-weight: 800; }
-            QLabel#brand_title { color: #ffffff; font-size: 18px; font-weight: 700; }
-            QLabel#brand_caption { color: #91abc2; font-size: 11px; }
-            QPushButton#nav_button { background: transparent; color: #b8cad9; border: none; border-radius: 8px; padding: 12px 14px; font-size: 14px; font-weight: 600; text-align: left; }
-            QPushButton#nav_button:hover { background: #1c3b59; color: #ffffff; }
-            QPushButton#nav_button:checked { background: #57d3c7; color: #102a43; font-weight: 700; }
-            QLabel#page_title { color: #102a43; font-size: 27px; font-weight: 750; }
-            QLabel#page_subtitle { color: #71869c; font-size: 13px; }
-            QFrame#hero { background: #173f5f; border-radius: 16px; }
-            QLabel#hero_title { color: #ffffff; font-size: 21px; font-weight: 700; }
-            QLabel#hero_copy { color: #c8dce9; font-size: 12px; }
-            QLabel#hero_metric { color: #57d3c7; font-size: 28px; font-weight: 750; }
-            QFrame#metric_card, QFrame#panel, QFrame#section { background: #ffffff; border: 1px solid #e3ebf3; border-radius: 13px; }
-            QLabel#metric_label, QLabel#panel_caption { color: #8295a8; font-size: 11px; font-weight: 600; }
-            QLabel#metric_value { color: #173f5f; font-size: 22px; font-weight: 750; }
-            QLabel#metric_change { color: #2a9d8f; font-size: 11px; font-weight: 700; }
-            QLabel#panel_title { color: #173f5f; font-size: 15px; font-weight: 700; }
-            QLabel#activity_title { color: #27445e; font-size: 12px; font-weight: 600; }
-            QLabel#activity_meta { color: #8a9bad; font-size: 10px; }
-            QLabel#dot { color: #f26b5b; font-size: 18px; font-weight: 700; }
-            QPushButton#action_button { background: #f26b5b; color: #ffffff; border: none; border-radius: 8px; padding: 10px 16px; font-size: 12px; font-weight: 700; }
-            QPushButton#action_button:hover { background: #d9554c; }
-            QProgressBar#health_bar { background: #eaf0f5; border: none; border-radius: 4px; height: 8px; }
-            QProgressBar#health_bar::chunk { background: #57d3c7; border-radius: 4px; }
-        ''')
+        self.setWindowTitle('Flamar Analytics - Dashboard')
+        self.setMinimumSize(1120, 700)
+        self.resize(1440, 840)
+        self.setStyleSheet(self._styles())
 
-        main_layout = QHBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
-        self.sidebar = QFrame(objectName='sidebar')
-        self.sidebar.setFixedWidth(260)
-        sidebar_layout = QVBoxLayout(self.sidebar)
-        sidebar_layout.setContentsMargins(22, 26, 22, 24)
-        sidebar_layout.setSpacing(7)
+        root = QHBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+        root.addWidget(self._build_sidebar())
 
-        brand_row = QHBoxLayout()
-        brand_mark = QLabel('F', objectName='brand_mark')
-        brand_mark.setAlignment(Qt.AlignCenter)
-        brand_mark.setFixedSize(34, 34)
-        brand_row.addWidget(brand_mark)
-        brand_text = QVBoxLayout()
-        brand_text.setSpacing(0)
-        brand_text.addWidget(QLabel('FLAMAR', objectName='brand_title'))
-        brand_text.addWidget(QLabel('Analytics suite', objectName='brand_caption'))
-        brand_row.addLayout(brand_text)
-        brand_row.addStretch()
-        sidebar_layout.addLayout(brand_row)
-        sidebar_layout.addSpacing(34)
-        sidebar_layout.addWidget(QLabel('ESPACIO DE TRABAJO', objectName='brand_caption'))
-        sidebar_layout.addSpacing(6)
+        self.pages = QStackedWidget()
+        for page in (
+            self._build_dashboard(),
+            ImportDataView(),
+            ConsumersView(),
+            PreprocessingView(),
+            SegmentationView(),
+            PurchasePatternsView(),
+            PredictionsView(),
+            RecommendationsView(),
+            ReportsView(),
+        ):
+            self.pages.addWidget(page)
+        root.addWidget(self.pages, 1)
 
+    def _build_sidebar(self):
+        sidebar = QFrame(objectName='sidebar')
+        sidebar.setFixedWidth(218)
+        layout = QVBoxLayout(sidebar)
+        layout.setContentsMargins(16, 18, 16, 18)
+        layout.setSpacing(4)
+        layout.addWidget(BrandWidget())
+        layout.addSpacing(13)
+
+        self.nav_group = QButtonGroup(self)
+        self.nav_group.setExclusive(True)
         self.nav_buttons = {}
-        sections = [
-            ('▦   Panel general', 'inicio'), ('◌   Segmentación', 'segmentacion'),
-            ('↗   Predicciones', 'prediccion'), ('⇩   Importaciones', 'importacion'),
-            ('⚙   Configuración', 'configuracion'),
-        ]
-        for label, key in sections:
-            btn = QPushButton(label)
-            btn.setObjectName('nav_button')
-            btn.setCheckable(True)
-            btn.toggled.connect(lambda checked, k=key: self.on_nav_toggled(checked, k))
-            sidebar_layout.addWidget(btn)
-            self.nav_buttons[key] = btn
-        sidebar_layout.addStretch()
-        sidebar_layout.addWidget(QLabel('Sesión activa', objectName='brand_caption'))
-        sidebar_layout.addWidget(QLabel('●  Administrador', objectName='brand_caption'))
+        section_labels = {0: None, 1: 'DATOS', 4: 'ANÁLISIS', 7: 'DECISIONES'}
+        for index, (icon, text, key) in enumerate(self.NAV_ITEMS):
+            if section_labels.get(index):
+                section = QLabel(section_labels[index], objectName='nav_section')
+                layout.addSpacing(10)
+                layout.addWidget(section)
+            button = QPushButton(f'{icon}   {text}', objectName='nav_button')
+            button.setCheckable(True)
+            button.setCursor(Qt.PointingHandCursor)
+            button.clicked.connect(lambda checked=False, page=index: self.pages.setCurrentIndex(page))
+            self.nav_group.addButton(button, index)
+            self.nav_buttons[key] = button
+            layout.addWidget(button)
+        self.nav_buttons['dashboard'].setChecked(True)
 
-        self.content = QWidget(objectName='workspace')
-        content_layout = QVBoxLayout(self.content)
-        content_layout.setContentsMargins(38, 30, 38, 30)
-        content_layout.setSpacing(18)
-        header = QHBoxLayout()
-        header_text = QVBoxLayout()
-        header_text.setSpacing(3)
-        header_text.addWidget(QLabel('Buenos días, equipo', objectName='page_title'))
-        header_text.addWidget(QLabel('Aquí tienes una lectura clara de lo que ocurre en tu negocio.', objectName='page_subtitle'))
-        header.addLayout(header_text)
-        header.addStretch()
-        header.addWidget(QLabel('●  Datos actualizados', objectName='metric_change'), alignment=Qt.AlignTop)
-        content_layout.addLayout(header)
+        layout.addStretch()
+        logout_button = QPushButton('↪   Cerrar sesión', objectName='logout_button')
+        logout_button.setCursor(Qt.PointingHandCursor)
+        logout_button.clicked.connect(self.logout_requested.emit)
+        layout.addWidget(logout_button)
+        separator = QFrame(objectName='sidebar_line')
+        separator.setFixedHeight(1)
+        layout.addWidget(separator)
+        account = QHBoxLayout()
+        avatar = QLabel('AA', objectName='avatar')
+        avatar.setAlignment(Qt.AlignCenter)
+        avatar.setFixedSize(38, 38)
+        account.addWidget(avatar)
+        account_text = QVBoxLayout()
+        account_text.setSpacing(0)
+        account_text.addWidget(QLabel('Administrador', objectName='account_name'))
+        account_text.addWidget(QLabel('Sesión activa', objectName='account_role'))
+        account.addLayout(account_text)
+        layout.addLayout(account)
+        return sidebar
 
-        self.stack = QWidget()
-        self.stack_layout = QVBoxLayout(self.stack)
-        self.stack_layout.setContentsMargins(0, 0, 0, 0)
-        self.stack_layout.setSpacing(0)
-        self.home_section = QFrame(objectName='section')
-        self.home_layout = QVBoxLayout(self.home_section)
-        self.home_layout.setContentsMargins(22, 22, 22, 22)
-        self.home_layout.setSpacing(16)
-        self._build_home_content()
-        self.seg_section = self._placeholder_section('Segmentación de consumidores')
-        self.pred_section = self._placeholder_section('Predicciones')
-        self.imp_section = self._placeholder_section('Importaciones')
-        self.cfg_section = self._placeholder_section('Configuración')
-        for section in (self.home_section, self.seg_section, self.pred_section, self.imp_section, self.cfg_section):
-            self.stack_layout.addWidget(section)
-        content_layout.addWidget(self.stack)
-        content_layout.addStretch()
-        main_layout.addWidget(self.sidebar)
-        main_layout.addWidget(self.content, 1)
-        self.on_nav_toggled(True, 'inicio')
+    def _build_dashboard(self):
+        page = QWidget(objectName='workspace')
+        outer = QVBoxLayout(page)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        content = QWidget(objectName='workspace')
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(24, 20, 24, 22)
+        layout.setSpacing(14)
 
-    def _build_home_content(self):
-        hero = QFrame(objectName='hero')
-        hero_layout = QHBoxLayout(hero)
-        hero_layout.setContentsMargins(24, 20, 24, 20)
-        hero_text = QVBoxLayout()
-        hero_text.setSpacing(5)
-        hero_text.addWidget(QLabel('Tu negocio, en perspectiva.', objectName='hero_title'))
-        hero_text.addWidget(QLabel('Detecta patrones, entiende a tus clientes y decide con confianza.', objectName='hero_copy'))
-        hero_text.addSpacing(7)
-        explore_btn = QPushButton('Explorar insights  →', objectName='action_button')
-        explore_btn.setFixedWidth(142)
-        explore_btn.clicked.connect(lambda: self.nav_buttons['segmentacion'].click())
-        hero_text.addWidget(explore_btn, alignment=Qt.AlignLeft)
-        hero_layout.addLayout(hero_text, 3)
-        hero_metric_box = QVBoxLayout()
-        hero_metric_box.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        hero_metric_box.addWidget(QLabel('SALUD DEL ANÁLISIS', objectName='brand_caption'), alignment=Qt.AlignRight)
-        hero_metric_box.addWidget(QLabel('92%', objectName='hero_metric'), alignment=Qt.AlignRight)
-        hero_metric_box.addWidget(QLabel('Excelente esta semana', objectName='hero_copy'), alignment=Qt.AlignRight)
-        hero_layout.addLayout(hero_metric_box, 1)
-        self.home_layout.addWidget(hero)
+        layout.addLayout(self._header('Dashboard', 'Hola, Administrador', 'Bienvenido de vuelta. Aquí tienes un resumen de tu negocio.'))
 
         metrics = QGridLayout()
         metrics.setSpacing(12)
-        metric_data = [
-            ('Clientes analizados', '12,480', '+8.4%  vs. mes anterior'),
-            ('Segmentos activos', '24', '+3 nuevos segmentos'),
-            ('Precisión predictiva', '87.6%', '+4.2%  mejora continua'),
-        ]
-        for index, (label, value, change) in enumerate(metric_data):
-            card = QFrame(objectName='metric_card')
-            card_layout = QVBoxLayout(card)
-            card_layout.setContentsMargins(16, 14, 16, 14)
-            card_layout.setSpacing(5)
-            card_layout.addWidget(QLabel(label.upper(), objectName='metric_label'))
-            card_layout.addWidget(QLabel(value, objectName='metric_value'))
-            card_layout.addWidget(QLabel(change, objectName='metric_change'))
-            metrics.addWidget(card, 0, index)
-        self.home_layout.addLayout(metrics)
+        data = (
+            ('♙', '25,430', 'Consumidores analizados', '↑ 14.8%', '#5b43f4', '#f0edff'),
+            ('▾', '18,720', 'Compras registradas', '↑ 12.6%', '#1479ed', '#eaf4ff'),
+            ('✦', '1,240', 'Clientes frecuentes', '↑ 9.3%', '#08a66c', '#e8f8f2'),
+            ('%', '2x1', 'Promoción con mejor rendimiento', '↑ 21.7%', '#ff7417', '#fff2e7'),
+        )
+        for column, metric in enumerate(data):
+            metrics.addWidget(self._metric_card(*metric), 0, column)
+            metrics.setColumnStretch(column, 1)
+        layout.addLayout(metrics)
 
-        lower_grid = QGridLayout()
-        lower_grid.setSpacing(12)
-        activity = QFrame(objectName='panel')
-        activity_layout = QVBoxLayout(activity)
-        activity_layout.setContentsMargins(18, 16, 18, 15)
-        activity_layout.setSpacing(10)
-        activity_layout.addWidget(QLabel('Actividad reciente', objectName='panel_title'))
-        activity_layout.addWidget(QLabel('MOVIMIENTOS DEL ESPACIO DE TRABAJO', objectName='panel_caption'))
-        for title, meta in [('Segmento “Clientes fieles” actualizado', 'Hace 12 minutos'), ('Nueva predicción mensual disponible', 'Hace 1 hora'), ('Importación de ventas completada', 'Ayer, 18:42')]:
-            row = QHBoxLayout()
-            row.setSpacing(8)
-            row.addWidget(QLabel('•', objectName='dot'))
-            text = QVBoxLayout()
-            text.setSpacing(1)
-            text.addWidget(QLabel(title, objectName='activity_title'))
-            text.addWidget(QLabel(meta, objectName='activity_meta'))
-            row.addLayout(text)
-            row.addStretch()
-            activity_layout.addLayout(row)
-        lower_grid.addWidget(activity, 0, 0)
+        charts = QGridLayout()
+        charts.setSpacing(12)
+        charts.addWidget(self._chart_card('Ventas por mes', BarChart(
+            [17, 19, 24, 22, 31, 32, 34, 35, 30, 26, 22, 16],
+            ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'],
+        )), 0, 0)
+        charts.addWidget(self._chart_card('Categorías más compradas', DonutChart(
+            [36, 24, 18, 14, 8], ['Ropa', 'Tecnología', 'Calzado', 'Comida', 'Accesorios'],
+        )), 0, 1)
+        charts.addWidget(self._chart_card('Distribución por segmento', DonutChart(
+            [36, 28, 22, 10, 4], ['Frecuentes', 'Ocasionales', 'En riesgo', 'Nuevos', 'Inactivos'],
+        )), 1, 0)
+        charts.addWidget(self._chart_card('Horarios con más compras', LineChart(
+            [160, 150, 230, 250, 380, 620, 820, 660, 380, 320, 470, 690, 510, 270],
+            ['0h', '2h', '4h', '6h', '8h', '10h', '12h', '14h', '16h', '18h', '20h', '22h', '24h', ''],
+        )), 1, 1)
+        charts.setColumnStretch(0, 1)
+        charts.setColumnStretch(1, 1)
+        layout.addLayout(charts)
 
-        health = QFrame(objectName='panel')
-        health_layout = QVBoxLayout(health)
-        health_layout.setContentsMargins(18, 16, 18, 15)
-        health_layout.setSpacing(9)
-        health_layout.addWidget(QLabel('Calidad de datos', objectName='panel_title'))
-        health_layout.addWidget(QLabel('Tu base está lista para generar insights.', objectName='panel_caption'))
-        health_layout.addSpacing(4)
-        health_layout.addWidget(QLabel('Completitud  ·  96%', objectName='activity_title'))
-        progress = QProgressBar(objectName='health_bar')
-        progress.setRange(0, 100)
-        progress.setValue(96)
-        progress.setTextVisible(False)
-        health_layout.addWidget(progress)
-        health_layout.addSpacing(5)
-        health_layout.addWidget(QLabel('Última revisión: hoy, 09:24', objectName='activity_meta'))
-        lower_grid.addWidget(health, 0, 1)
-        lower_grid.setColumnStretch(0, 3)
-        lower_grid.setColumnStretch(1, 2)
-        self.home_layout.addLayout(lower_grid)
-
-    def _placeholder_section(self, title):
-        section = QFrame(objectName='section')
-        layout = QVBoxLayout(section)
-        layout.setContentsMargins(32, 24, 32, 24)
+        findings = QFrame(objectName='card')
+        findings_layout = QVBoxLayout(findings)
+        findings_layout.setContentsMargins(18, 14, 18, 15)
+        findings_layout.addWidget(QLabel('Hallazgos recientes', objectName='card_title'))
+        row = QHBoxLayout()
+        for icon, copy in (
+            ('↗', 'Las compras aumentaron <b>14.8%</b><br>frente al período anterior.'),
+            ('▢', 'La categoría <b>Ropa</b> lidera<br>las compras con <b>36%</b>.'),
+            ('♙', 'Los clientes frecuentes generan<br><b>62%</b> del ingreso total.'),
+        ):
+            item = QFrame(objectName='finding')
+            item_layout = QHBoxLayout(item)
+            badge = QLabel(icon, objectName='finding_icon')
+            badge.setAlignment(Qt.AlignCenter)
+            badge.setFixedSize(40, 40)
+            item_layout.addWidget(badge)
+            label = QLabel(copy, objectName='finding_copy')
+            item_layout.addWidget(label, 1)
+            row.addWidget(item)
+        findings_layout.addLayout(row)
+        layout.addWidget(findings)
         layout.addStretch()
-        label = QLabel(title)
-        label.setAlignment(Qt.AlignCenter)
-        label.setStyleSheet('color: #173f5f; font-size: 18px; font-weight: 700;')
-        layout.addWidget(label)
-        layout.addStretch()
-        return section
+        scroll.setWidget(content)
+        outer.addWidget(scroll)
+        return page
 
-    def on_nav_toggled(self, checked, section_key):
-        if not checked:
-            return
-        for key, widget in self._sections().items():
-            widget.setVisible(key == section_key)
-        for key, btn in self.nav_buttons.items():
-            btn.setChecked(key == section_key)
+    def _header(self, title, greeting=None, subtitle=None):
+        wrapper = QVBoxLayout()
+        top = QHBoxLayout()
+        top.addWidget(QLabel(title, objectName='page_title'))
+        top.addStretch()
+        search = QLabel('⌕   Buscar...', objectName='search')
+        search.setFixedWidth(220)
+        top.addWidget(search)
+        top.addWidget(QLabel('♢', objectName='notification'))
+        top.addWidget(QLabel('AA', objectName='top_avatar'))
+        admin = QVBoxLayout()
+        admin.setSpacing(0)
+        admin.addWidget(QLabel('Administrador', objectName='top_name'))
+        admin.addWidget(QLabel('Administrador', objectName='top_role'))
+        top.addLayout(admin)
+        wrapper.addLayout(top)
+        if greeting:
+            wrapper.addSpacing(3)
+            wrapper.addWidget(QLabel(greeting, objectName='greeting'))
+        if subtitle:
+            wrapper.addWidget(QLabel(subtitle, objectName='subtitle'))
+        return wrapper
 
-    def _sections(self):
-        return {
-            'inicio': self.home_section,
-            'segmentacion': self.seg_section,
-            'prediccion': self.pred_section,
-            'importacion': self.imp_section,
-            'configuracion': self.cfg_section,
+    def _metric_card(self, icon, value, label, change, color, background):
+        card = QFrame(objectName='card')
+        card.setMinimumHeight(106)
+        layout = QHBoxLayout(card)
+        layout.setContentsMargins(16, 15, 14, 15)
+        badge = QLabel(icon)
+        badge.setAlignment(Qt.AlignCenter)
+        badge.setFixedSize(52, 52)
+        badge.setStyleSheet(f'background: {background}; color: {color}; border-radius: 14px; font-size: 24px; font-weight: 700;')
+        layout.addWidget(badge)
+        text = QVBoxLayout()
+        text.setSpacing(2)
+        text.addWidget(QLabel(value, objectName='metric_value'))
+        metric_label = QLabel(label, objectName='metric_label')
+        metric_label.setWordWrap(True)
+        text.addWidget(metric_label)
+        change_label = QLabel(f'{change}  <span style="color:#64748b">vs. período anterior</span>', objectName='metric_change')
+        text.addWidget(change_label)
+        layout.addLayout(text, 1)
+        return card
+
+    def _chart_card(self, title, chart):
+        card = QFrame(objectName='card')
+        card.setMinimumHeight(210)
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(14, 12, 14, 10)
+        layout.setSpacing(3)
+        layout.addWidget(QLabel(title, objectName='card_title'))
+        layout.addWidget(chart, 1)
+        return card
+
+    def _build_placeholder(self, title, key):
+        page = QWidget(objectName='workspace')
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(30, 24, 30, 30)
+        subtitles = {
+            'importar': 'Carga y procesa archivos para integrarlos con tus análisis.',
+            'consumidores': 'Explora y analiza el comportamiento de tus consumidores.',
+            'preprocesamiento': 'Revisa la calidad de tus datos antes del análisis.',
+            'segmentacion': 'Descubre grupos de consumidores con comportamientos similares.',
+            'patrones': 'Descubre relaciones entre productos que suelen comprarse juntos.',
+            'predicciones': 'Anticipa tendencias y comportamientos futuros.',
+            'recomendaciones': 'Acciones sugeridas para impulsar tus resultados.',
+            'reportes': 'Crea y exporta reportes con los insights de tu negocio.',
         }
+        layout.addLayout(self._header(title))
+        layout.addWidget(QLabel(subtitles[key], objectName='subtitle'))
+        layout.addSpacing(18)
+        empty = QFrame(objectName='empty_state')
+        empty_layout = QVBoxLayout(empty)
+        empty_layout.addStretch()
+        mark = QLabel('FL', objectName='empty_mark')
+        mark.setAlignment(Qt.AlignCenter)
+        mark.setFixedSize(64, 64)
+        empty_layout.addWidget(mark, alignment=Qt.AlignCenter)
+        empty_layout.addWidget(QLabel(f'Vista de {title}', objectName='empty_title'), alignment=Qt.AlignCenter)
+        empty_layout.addWidget(QLabel('Módulo preparado para conectar sus datos y componentes.', objectName='subtitle'), alignment=Qt.AlignCenter)
+        empty_layout.addStretch()
+        layout.addWidget(empty, 1)
+        return page
+
+    @staticmethod
+    def _styles():
+        return '''
+            QWidget { color: #0b1739; font-family: "Segoe UI Variable", "Segoe UI"; }
+            QFrame#sidebar { background: #071b37; }
+            QLabel#nav_section { color: #8292aa; font-size: 9px; font-weight: 700; padding: 5px 10px 2px; }
+            QPushButton#nav_button { background: transparent; color: #d8e2f1; border: none; border-radius: 8px; padding: 9px 11px; text-align: left; font-size: 12px; }
+            QPushButton#nav_button:hover { background: #122c50; color: white; }
+            QPushButton#nav_button:checked { background: #543cff; color: white; font-weight: 700; }
+            QPushButton#logout_button { background: transparent; color: #d8e2f1; border: none; border-radius: 8px; padding: 9px 11px; text-align: left; font-size: 12px; }
+            QPushButton#logout_button:hover { background: #422044; color: #ffced3; }
+            QFrame#sidebar_line { background: #203752; border: none; }
+            QLabel#avatar, QLabel#top_avatar { color: white; background: #573ff3; border-radius: 19px; font-size: 11px; font-weight: 700; }
+            QLabel#account_name { color: white; font-size: 11px; font-weight: 700; }
+            QLabel#account_role { color: #91a3ba; font-size: 9px; }
+            QWidget#workspace, QScrollArea { background: #f8faff; border: none; }
+            QScrollBar:vertical { background: #f2f5fa; width: 8px; }
+            QScrollBar::handle:vertical { background: #cad3e0; border-radius: 4px; min-height: 40px; }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+            QLabel#page_title { color: #09142f; font-size: 23px; font-weight: 800; }
+            QLabel#greeting { color: #10182c; font-size: 16px; font-weight: 700; }
+            QLabel#subtitle { color: #64748b; font-size: 11px; }
+            QLabel#search { color: #718096; background: white; border: 1px solid #dce3ed; border-radius: 8px; padding: 10px 12px; }
+            QLabel#notification { color: #2f4264; font-size: 22px; padding: 0 8px; }
+            QLabel#top_name { color: #111827; font-size: 11px; font-weight: 700; }
+            QLabel#top_role { color: #64748b; font-size: 9px; }
+            QFrame#card { background: white; border: 1px solid #dfe5ee; border-radius: 11px; }
+            QLabel#metric_value { color: #0b1020; font-size: 22px; font-weight: 800; }
+            QLabel#metric_label { color: #273654; font-size: 10px; }
+            QLabel#metric_change { color: #08a66c; font-size: 9px; font-weight: 700; }
+            QLabel#card_title { color: #111827; font-size: 13px; font-weight: 750; }
+            QFrame#finding { border: none; border-right: 1px solid #e5e9f0; }
+            QLabel#finding_icon { color: #553cff; background: #f0edff; border-radius: 20px; font-size: 18px; font-weight: 700; }
+            QLabel#finding_copy { color: #344258; font-size: 10px; }
+            QFrame#empty_state { background: white; border: 1px solid #dfe5ee; border-radius: 12px; }
+            QLabel#empty_mark { color: white; background: #553cff; border-radius: 32px; font-size: 20px; font-weight: 800; }
+            QLabel#empty_title { color: #0b1739; font-size: 18px; font-weight: 750; }
+        '''
