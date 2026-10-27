@@ -26,6 +26,7 @@ PURPLE = '#553cff'
 INK = '#0b1739'
 MUTED = '#64748b'
 GREEN = '#08a66c'
+BLUE = '#1479ed'
 ORANGE = '#f28b00'
 RED = '#ef4444'
 TEAL = '#0cae9b'
@@ -350,16 +351,16 @@ class SegmentationView(_Page):
     """Segmentation overview with deterministic visualization and mock execution."""
 
     SEGMENTS = (
-        ('1', 'Clientes frecuentes', 'Compran con alta frecuencia y gastan por encima del promedio.', '#4861ed'),
-        ('2', 'Buscadores de valor', 'Compran regularmente y son sensibles a promociones.', '#f28b00'),
-        ('3', 'Sensibles a descuentos', 'Compran ocasionalmente y responden a descuentos.', TEAL),
-        ('4', 'Bajo compromiso', 'Compran con baja frecuencia y menor gasto.', '#7647ed'),
+        ('1', 'Compradores recurrentes', 'Alta frecuencia, ticket elevado y fidelidad a categorías clave.', '#7647ed'),
+        ('2', 'Sensibles a promociones', 'Aumentan sus compras ante promociones y descuentos.', TEAL),
+        ('3', 'Exploradores de tendencias', 'Interés en novedades y alta rotación de categorías.', '#f28b00'),
+        ('4', 'Compradores estacionales', 'Concentran sus compras en temporadas específicas.', '#1479ed'),
     )
 
     def __init__(self, parent=None):
         super().__init__(
-            'Segmentación de consumidores',
-            'Descubre grupos de consumidores con comportamientos similares para diseñar estrategias efectivas.',
+            'Segmentación comercial',
+            'Descubre y analiza segmentos de clientes para diseñar estrategias comerciales más efectivas.',
             parent,
         )
         self._progress_value = 0
@@ -375,9 +376,9 @@ class SegmentationView(_Page):
         grid = QGridLayout()
         grid.setSpacing(14)
         cards = (
-            ('3,450', 'Consumidores analizados', '+12.5% vs. análisis anterior', PURPLE, 'C'),
-            ('4', 'Segmentos identificados', '+1 nuevo vs. análisis anterior', TEAL, 'S'),
-            ('12/08/2025', 'Último análisis', '10:30 a.m.', ORANGE, 'A'),
+            ('3,450', 'Registros analizados', '+12% vs. mes anterior', GREEN, 'C'),
+            ('4', 'Segmentos detectados', 'Sin cambios vs. mes anterior', BLUE, 'S'),
+            ('12/08/2025', 'Última actualización', 'Hace 3 días', RED, 'A'),
         )
         for column, data in enumerate(cards):
             grid.addWidget(self._metric_card(*data), 0, column)
@@ -468,15 +469,14 @@ class SegmentationView(_Page):
         layout.setContentsMargins(14, 13, 14, 14)
         layout.addWidget(QLabel('Comparación de características por segmento', objectName='cardTitle'))
         rows = (
-            ('Frecuencia de compra (compras/mes)', '8.6', '4.2', '2.1', '0.8'),
-            ('Gasto promedio ($)', '950.40', '620.30', '320.10', '180.20'),
-            ('Edad promedio (años)', '34', '29', '26', '22'),
-            ('Categoría favorita', 'Cuidado personal', 'Alimentos y bebidas', 'Limpieza del hogar', 'Snacks y golosinas'),
-            ('Sensibilidad a descuentos', 'Baja', 'Media', 'Alta', 'Muy alta'),
-            ('Lealtad a la marca', 'Alta', 'Media', 'Baja', 'Muy baja'),
+            ('Frecuencia de compra (promedio/mes)', '9.8', '5.2', '4.1', '3.6'),
+            ('Ticket promedio ($)', '$220', '$95', '$140', '$110'),
+            ('Respuesta a promociones', 'Media', 'Alta', 'Alta', 'Media'),
+            ('Afinidad estacional', 'Baja', 'Media', 'Media', 'Alta'),
+            ('Potencial de abastecimiento', 'Alto', 'Medio', 'Medio', 'Alto'),
         )
         table = QTableWidget(len(rows), 5)
-        table.setHorizontalHeaderLabels(('Característica', '●  Segmento 1', '●  Segmento 2', '●  Segmento 3', '●  Segmento 4'))
+        table.setHorizontalHeaderLabels(('Característica', '●  Recurrentes', '●  Sensibles a promociones', '●  Exploradores', '●  Estacionales'))
         table.verticalHeader().hide()
         table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         table.setSelectionMode(QAbstractItemView.NoSelection)

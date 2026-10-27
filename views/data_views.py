@@ -165,13 +165,13 @@ class _DataPage(QWidget):
 
 
 class ImportDataView(_DataPage):
-    MOCK_HEADERS = ('ID Consumidor', 'Fecha', 'Tienda', 'Categoría', 'Producto', 'Cantidad', 'Precio', 'Promoción')
+    MOCK_HEADERS = ('Fecha', 'Producto', 'Categoría', 'Cantidad', 'Precio (USD)', 'Stock actual', 'Proveedor', 'Campaña', 'Temporada')
     MOCK_ROWS = (
-        ('C0001', '12/08/2024', 'Tienda A', 'Ropa', 'Camiseta básica', '1', '$ 19.900', 'Sí'),
-        ('C0002', '12/08/2024', 'Tienda B', 'Calzado', 'Zapatillas urbanas', '1', '$ 129.900', 'Ninguna'),
-        ('C0003', '12/08/2024', 'Tienda A', 'Cuidado personal', 'Shampoo hidratante', '2', '$ 23.400', '10%'),
-        ('C0004', '12/08/2024', 'Tienda C', 'Comida', 'Café molido 500g', '1', '$ 15.500', 'Sí'),
-        ('C0005', '12/08/2024', 'Tienda A', 'Bebidas', 'Agua mineral 1.5L', '3', '$ 6.000', 'Ninguna'),
+        ('01/08/2025', 'Audífonos Bluetooth', 'Tecnología', '12', '35.00', '45', 'TechSupply', 'Regreso a clases', 'Verano'),
+        ('01/08/2025', 'Mochila escolar', 'Accesorios', '8', '28.50', '32', 'Mundo Escolar', 'Regreso a clases', 'Verano'),
+        ('02/08/2025', 'Playera K-pop', 'Ropa', '25', '18.90', '60', 'KStyle', 'K-pop', 'Verano'),
+        ('02/08/2025', 'Decoración Halloween', 'Decoración', '40', '12.00', '120', 'DecoMundo', 'Halloween', 'Otoño'),
+        ('03/08/2025', 'Cuaderno universitario', 'Papelería', '30', '6.50', '80', 'OfiPlus', 'Regreso a clases', 'Verano'),
     )
 
     def __init__(self, parent=None):
@@ -229,7 +229,7 @@ class ImportDataView(_DataPage):
         choose.setFixedWidth(215)
         choose.clicked.connect(self._choose_file)
         layout.addWidget(choose, alignment=Qt.AlignCenter)
-        formats = QLabel('Formatos soportados: CSV, XLSX\nTamaño máximo: 100 MB', objectName='muted')
+        formats = QLabel('Formatos soportados: CSV, XLSX, XLS\nTamaño máximo: 50 MB', objectName='muted')
         formats.setAlignment(Qt.AlignCenter)
         layout.addWidget(formats)
         layout.addStretch()
@@ -243,9 +243,9 @@ class ImportDataView(_DataPage):
         layout.setSpacing(0)
         layout.addWidget(QLabel('Detalles del archivo', objectName='section_title'))
         layout.addSpacing(8)
-        self.file_name = QLabel('ventas_agosto_2024.xlsx', objectName='detail_value')
-        self.record_count = QLabel('25,430', objectName='detail_value')
-        self.import_date = QLabel('12/08/2024 10:30 a. m.', objectName='detail_value')
+        self.file_name = QLabel('ventas_agosto_2025.xlsx', objectName='detail_value')
+        self.record_count = QLabel('1,248', objectName='detail_value')
+        self.import_date = QLabel('18/08/2025 10:24 a. m.', objectName='detail_value')
         for icon, label, value, green in (
             ('▣', 'Nombre del archivo', self.file_name, True),
             ('☷', 'Registros detectados', self.record_count, False),
@@ -273,7 +273,7 @@ class ImportDataView(_DataPage):
         self.preview = self._table(self.MOCK_HEADERS, self.MOCK_ROWS, 221)
         layout.addWidget(self.preview)
         footer = QHBoxLayout()
-        self.preview_caption = QLabel('Mostrando 5 de 25,430 registros  ⓘ', objectName='muted')
+        self.preview_caption = QLabel('Mostrando 5 de 1,248 registros  ⓘ', objectName='muted')
         footer.addWidget(self.preview_caption)
         footer.addStretch()
         cancel = self._button('Cancelar')
@@ -335,10 +335,10 @@ class ImportDataView(_DataPage):
 
     def _reset_mock_data(self):
         self.selected_path = None
-        self.file_name.setText('ventas_agosto_2024.xlsx')
-        self.record_count.setText('25,430')
-        self.import_date.setText('12/08/2024 10:30 a. m.')
-        self._fill_preview(self.MOCK_HEADERS, self.MOCK_ROWS, 25430)
+        self.file_name.setText('ventas_agosto_2025.xlsx')
+        self.record_count.setText('1,248')
+        self.import_date.setText('18/08/2025 10:24 a. m.')
+        self._fill_preview(self.MOCK_HEADERS, self.MOCK_ROWS, 1248)
 
     def _validate_data(self):
         self.sender().setText('Datos validados ✓')

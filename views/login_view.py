@@ -1,124 +1,168 @@
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtGui import QColor, QLinearGradient, QPainter
 from PySide6.QtWidgets import (
-    QCheckBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
-    QPushButton, QVBoxLayout, QWidget,
+    QCheckBox, QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QLabel,
+    QLineEdit, QMessageBox, QPushButton, QVBoxLayout, QWidget,
 )
 
 from views.home_view import HomeView
-from views.ui_components import BrandWidget
+from views.ui_components import BrandWidget, LogoMark
+
+
+class HeroPanel(QFrame):
+    def __init__(self, parent=None):
+        super().__init__(parent, objectName='hero')
+        self.setMinimumWidth(470)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(48, 38, 48, 42)
+        layout.addWidget(BrandWidget())
+        layout.addStretch(2)
+
+        eyebrow = QLabel('INTELIGENCIA COMERCIAL', objectName='heroEyebrow')
+        layout.addWidget(eyebrow)
+        title = QLabel('Inventario bajo control.\nDecisiones con visión.', objectName='heroTitle')
+        title.setWordWrap(True)
+        layout.addWidget(title)
+        subtitle = QLabel(
+            'Convierte tus ventas, temporadas y señales del mercado en decisiones claras para comprar mejor y vender más.',
+            objectName='heroSubtitle',
+        )
+        subtitle.setWordWrap(True)
+        subtitle.setMaximumWidth(570)
+        layout.addWidget(subtitle)
+        layout.addSpacing(26)
+
+        features = QHBoxLayout()
+        features.setSpacing(10)
+        for icon, value, label in (
+            ('↗', 'Demanda', 'Pronósticos precisos'),
+            ('◇', 'Inventario', 'Alertas oportunas'),
+            ('◎', 'Tendencias', 'Señales del mercado'),
+        ):
+            card = QFrame(objectName='featureCard')
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(14, 12, 14, 12)
+            card_layout.setSpacing(2)
+            card_layout.addWidget(QLabel(icon, objectName='featureIcon'))
+            card_layout.addWidget(QLabel(value, objectName='featureValue'))
+            card_layout.addWidget(QLabel(label, objectName='featureLabel'))
+            features.addWidget(card)
+        layout.addLayout(features)
+        layout.addStretch()
+        layout.addWidget(QLabel('FLAMAR ANALYTICS  ·  2026', objectName='heroFooter'))
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        gradient = QLinearGradient(0, 0, self.width(), self.height())
+        gradient.setColorAt(0, QColor('#061a36'))
+        gradient.setColorAt(.58, QColor('#10245a'))
+        gradient.setColorAt(1, QColor('#3f24bc'))
+        painter.fillRect(self.rect(), gradient)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(119, 91, 255, 35))
+        painter.drawEllipse(QPointF(self.width() * .90, self.height() * .12), 210, 210)
+        painter.setBrush(QColor(30, 174, 238, 22))
+        painter.drawEllipse(QPointF(self.width() * .10, self.height() * .85), 175, 175)
+        super().paintEvent(event)
 
 
 class LoginView(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('Flamar Analytics - Inicio de sesión')
-        self.setMinimumSize(980, 620)
-        self.resize(1360, 760)
+        self.setWindowTitle('Flamar Analytics - Iniciar sesión')
+        self.setMinimumSize(720, 560)
+        self.resize(1280, 760)
         self.home_view = None
         self.setStyleSheet(self._styles())
 
-        root = QHBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
-        root.addWidget(self._build_sidebar())
-        root.addWidget(self._build_content(), 1)
+        self.root = QHBoxLayout(self)
+        self.root.setContentsMargins(0, 0, 0, 0)
+        self.root.setSpacing(0)
+        self.hero = HeroPanel()
+        self.root.addWidget(self.hero, 6)
+        self.root.addWidget(self._build_access_panel(), 5)
 
-    def _build_sidebar(self):
-        sidebar = QFrame(objectName='sidebar')
-        sidebar.setFixedWidth(240)
-        layout = QVBoxLayout(sidebar)
-        layout.setContentsMargins(24, 28, 24, 24)
-        layout.setSpacing(8)
-        layout.addWidget(BrandWidget())
-        layout.addSpacing(28)
-        for icon, text, active in (
-            ('⌂', 'Inicio de sesión', True), ('▦', 'Panel principal', False),
-            ('▥', 'Reportes', False), ('♙', 'Consumidores', False),
-            ('◉', 'Segmentaciones', False), ('↗', 'Comportamientos', False),
-            ('✦', 'Predicciones', False), ('☆', 'Recomendaciones', False),
-            ('⚙', 'Configuración', False), ('?', 'Ayuda', False),
-        ):
-            item = QLabel(f'{icon}    {text}', objectName='side_active' if active else 'side_item')
-            item.setFixedHeight(42)
-            item.setAlignment(Qt.AlignVCenter)
-            layout.addWidget(item)
-        layout.addStretch()
-        line = QFrame(objectName='line')
-        line.setFixedHeight(1)
-        layout.addWidget(line)
-        account = QHBoxLayout()
-        avatar = QLabel('AA', objectName='avatar')
-        avatar.setAlignment(Qt.AlignCenter)
-        avatar.setFixedSize(38, 38)
-        account.addWidget(avatar)
-        detail = QVBoxLayout()
-        detail.setSpacing(0)
-        detail.addWidget(QLabel('Administrador', objectName='account_name'))
-        detail.addWidget(QLabel('admin@flamar.com', objectName='account_email'))
-        account.addLayout(detail)
-        layout.addLayout(account)
-        return sidebar
+    def _build_access_panel(self):
+        panel = QFrame(objectName='accessPanel')
+        outer = QVBoxLayout(panel)
+        outer.setContentsMargins(52, 32, 52, 30)
+        outer.addStretch()
 
-    def _build_content(self):
-        content = QFrame(objectName='content')
-        layout = QVBoxLayout(content)
-        layout.setContentsMargins(40, 24, 40, 28)
-        layout.addStretch()
+        self.mobile_brand = QWidget(objectName='mobileBrand')
+        brand_layout = QHBoxLayout(self.mobile_brand)
+        brand_layout.setContentsMargins(0, 0, 0, 16)
+        mark = LogoMark()
+        mark.setFixedSize(42, 42)
+        brand_layout.addWidget(mark)
+        brand_layout.addWidget(QLabel('FLAMAR', objectName='mobileBrandName'))
+        brand_layout.addStretch()
+        self.mobile_brand.hide()
+        outer.addWidget(self.mobile_brand)
 
-        brand = QLabel('▥  FLAMAR', objectName='main_brand')
-        brand.setAlignment(Qt.AlignCenter)
-        layout.addWidget(brand)
-        caption = QLabel('A N A L Y T I C S', objectName='main_caption')
-        caption.setAlignment(Qt.AlignCenter)
-        layout.addWidget(caption)
-        layout.addSpacing(28)
+        card = QFrame(objectName='loginCard')
+        card.setMinimumWidth(430)
+        card.setMaximumWidth(480)
+        shadow = QGraphicsDropShadowEffect(card)
+        shadow.setBlurRadius(36)
+        shadow.setOffset(0, 10)
+        shadow.setColor(QColor(18, 35, 70, 32))
+        card.setGraphicsEffect(shadow)
+        form = QVBoxLayout(card)
+        form.setContentsMargins(38, 36, 38, 34)
+        form.setSpacing(9)
 
-        card = QFrame(objectName='login_card')
-        card.setFixedWidth(470)
-        card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(34, 30, 34, 28)
-        card_layout.setSpacing(10)
-        title = QLabel('Iniciar sesión', objectName='login_title')
-        title.setAlignment(Qt.AlignCenter)
-        card_layout.addWidget(title)
-        subtitle = QLabel('Accede a tu cuenta para analizar el comportamiento\nde los consumidores.', objectName='login_subtitle')
-        subtitle.setAlignment(Qt.AlignCenter)
-        card_layout.addWidget(subtitle)
-        card_layout.addSpacing(14)
-        card_layout.addWidget(QLabel('Usuario', objectName='field_label'))
+        form.addWidget(QLabel('Bienvenido de nuevo', objectName='loginTitle'))
+        intro = QLabel('Ingresa tus credenciales para continuar a tu espacio de análisis.', objectName='loginSubtitle')
+        intro.setWordWrap(True)
+        form.addWidget(intro)
+        form.addSpacing(18)
+
+        form.addWidget(QLabel('Usuario', objectName='fieldLabel'))
         self.user_input = QLineEdit()
-        self.user_input.setPlaceholderText('  Ingresa tu usuario')
+        self.user_input.setPlaceholderText('Ingresa tu usuario')
         self.user_input.setClearButtonEnabled(True)
-        card_layout.addWidget(self.user_input)
-        card_layout.addSpacing(6)
-        card_layout.addWidget(QLabel('Contraseña', objectName='field_label'))
+        form.addWidget(self.user_input)
+        form.addSpacing(8)
+
+        form.addWidget(QLabel('Contraseña', objectName='fieldLabel'))
         self.password_input = QLineEdit()
-        self.password_input.setPlaceholderText('  Ingresa tu contraseña')
+        self.password_input.setPlaceholderText('Ingresa tu contraseña')
         self.password_input.setEchoMode(QLineEdit.Password)
         self.password_input.returnPressed.connect(self.handle_login)
-        card_layout.addWidget(self.password_input)
+        form.addWidget(self.password_input)
 
         options = QHBoxLayout()
-        remember = QCheckBox('Recordar sesión')
+        remember = QCheckBox('Mantener sesión iniciada')
         remember.setChecked(True)
         options.addWidget(remember)
         options.addStretch()
-        forgot = QPushButton('¿Olvidaste tu contraseña?', objectName='link_button')
+        forgot = QPushButton('¿Olvidaste tu contraseña?', objectName='linkButton')
         forgot.setCursor(Qt.PointingHandCursor)
+        forgot.clicked.connect(self._show_recovery)
         options.addWidget(forgot)
-        card_layout.addLayout(options)
-        card_layout.addSpacing(6)
-        login_button = QPushButton('Iniciar sesión', objectName='login_button')
-        login_button.setCursor(Qt.PointingHandCursor)
-        login_button.clicked.connect(self.handle_login)
-        card_layout.addWidget(login_button)
-        card_layout.addSpacing(10)
-        footer = QLabel('▣  © 2026 Flamar Analytics  ·  Todos los derechos reservados', objectName='footer')
-        footer.setAlignment(Qt.AlignCenter)
-        card_layout.addWidget(footer)
-        layout.addWidget(card, alignment=Qt.AlignHCenter)
-        layout.addStretch()
-        return content
+        form.addLayout(options)
+        form.addSpacing(12)
+
+        login = QPushButton('Entrar a Flamar  →', objectName='loginButton')
+        login.setCursor(Qt.PointingHandCursor)
+        login.clicked.connect(self.handle_login)
+        form.addWidget(login)
+        form.addSpacing(14)
+
+        security = QLabel('◉  Acceso seguro y datos protegidos', objectName='security')
+        security.setAlignment(Qt.AlignCenter)
+        form.addWidget(security)
+        outer.addWidget(card, alignment=Qt.AlignHCenter)
+        outer.addStretch()
+        outer.addWidget(QLabel('© 2026 Flamar Analytics', objectName='copyright'), alignment=Qt.AlignHCenter)
+        return panel
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        narrow = self.width() < 980
+        self.hero.setVisible(not narrow)
+        self.mobile_brand.setVisible(narrow)
 
     def handle_login(self):
         username = self.user_input.text().strip()
@@ -138,32 +182,40 @@ class LoginView(QWidget):
         self.show()
         self.activateWindow()
 
+    def _show_recovery(self):
+        QMessageBox.information(self, 'Recuperar acceso', 'Contacta al administrador de tu organización para restablecer tu contraseña.')
+
     @staticmethod
     def _styles():
         return '''
             QWidget { color: #0b1739; font-family: "Segoe UI Variable", "Segoe UI"; }
-            QFrame#sidebar { background: #071b37; }
-            QLabel#side_item, QLabel#side_active { color: #e1e8f3; font-size: 12px; padding: 0 12px; border-radius: 8px; }
-            QLabel#side_active { color: white; background: #553cff; font-weight: 700; }
-            QFrame#line { background: #203752; border: none; }
-            QLabel#avatar { color: white; background: #553cff; border-radius: 19px; font-size: 11px; font-weight: 700; }
-            QLabel#account_name { color: white; font-size: 11px; font-weight: 700; }
-            QLabel#account_email { color: #91a3ba; font-size: 9px; }
-            QFrame#content { background: #f7f9ff; }
-            QLabel#main_brand { color: #4932ee; font-size: 30px; font-weight: 850; letter-spacing: 1px; }
-            QLabel#main_caption { color: #6151ed; font-size: 12px; font-weight: 800; letter-spacing: 4px; }
-            QFrame#login_card { background: white; border: 1px solid #dce2eb; border-radius: 16px; }
-            QLabel#login_title { color: #080d1c; font-size: 24px; font-weight: 800; }
-            QLabel#login_subtitle { color: #687891; font-size: 12px; }
-            QLabel#field_label { color: #111827; font-size: 11px; font-weight: 700; }
-            QLineEdit { background: white; color: #111827; border: 1px solid #ccd5e2; border-radius: 7px; padding: 11px; font-size: 12px; }
-            QLineEdit:focus { border: 2px solid #5a43f5; }
-            QCheckBox { color: #253047; font-size: 11px; spacing: 7px; }
-            QCheckBox::indicator { width: 15px; height: 15px; }
-            QCheckBox::indicator:checked { background: #553cff; border: 1px solid #553cff; border-radius: 3px; }
-            QPushButton#link_button { color: #4d35f3; background: transparent; border: none; font-size: 11px; }
-            QPushButton#login_button { color: white; background: #553cff; border: none; border-radius: 7px; padding: 12px; font-size: 13px; font-weight: 700; }
-            QPushButton#login_button:hover { background: #442be8; }
-            QPushButton#login_button:pressed { background: #3922ce; }
-            QLabel#footer { color: #8793a8; font-size: 9px; }
+            QFrame#hero { border: none; }
+            QLabel#heroEyebrow { color: #8f80ff; font-size: 11px; font-weight: 800; letter-spacing: 2px; }
+            QLabel#heroTitle { color: white; font-size: 36px; font-weight: 850; }
+            QLabel#heroSubtitle { color: #bdcbe0; font-size: 14px; }
+            QFrame#featureCard { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.13); border-radius: 12px; }
+            QLabel#featureIcon { color: #8d7bff; font-size: 18px; font-weight: 800; }
+            QLabel#featureValue { color: white; font-size: 12px; font-weight: 750; }
+            QLabel#featureLabel { color: #aebed5; font-size: 9px; }
+            QLabel#heroFooter { color: #879ab5; font-size: 9px; font-weight: 700; letter-spacing: 1px; }
+            QFrame#accessPanel { background: #f6f8fc; border: none; }
+            QFrame#loginCard { background: white; border: 1px solid #e1e6ef; border-radius: 18px; }
+            QLabel#loginTitle { color: #07132f; font-size: 27px; font-weight: 850; }
+            QLabel#loginSubtitle { color: #6c7990; font-size: 12px; }
+            QLabel#fieldLabel { color: #17233b; font-size: 11px; font-weight: 700; }
+            QLineEdit { color: #14213a; background: #fbfcfe; border: 1px solid #d8e0eb; border-radius: 9px; padding: 14px 14px; font-size: 12px; }
+            QLineEdit:focus { background: white; border: 2px solid #5b3df5; }
+            QCheckBox { color: #536178; font-size: 9px; spacing: 7px; }
+            QCheckBox::indicator { width: 15px; height: 15px; border: 1px solid #bac5d5; border-radius: 4px; background: white; }
+            QCheckBox::indicator:checked { background: #5838f3; border-color: #5838f3; }
+            QPushButton#linkButton { color: #5235ec; background: transparent; border: none; font-size: 9px; font-weight: 650; }
+            QPushButton#loginButton { color: white; background: #5534f3; border: none; border-radius: 9px; padding: 13px; font-size: 12px; font-weight: 750; }
+            QPushButton#loginButton:hover { background: #4425dd; }
+            QPushButton#loginButton:pressed { background: #3519bd; }
+            QLabel#security, QLabel#copyright { color: #8a96a8; font-size: 9px; }
+            QWidget#mobileBrand { background: transparent; }
+            QLabel#mobileBrandName { color: #17234a; font-size: 20px; font-weight: 850; letter-spacing: 1px; }
         '''
+
+
+__all__ = ['LoginView']

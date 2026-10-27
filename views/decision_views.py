@@ -316,11 +316,11 @@ class ReportsView(QWidget):
     """Content-only reports page with filters, preview, and export actions."""
 
     REPORT_TYPES = (
-        ('G', 'Informe general de consumidores', 'Resumen ejecutivo con metricas clave del comportamiento del consumidor.', VIOLET, '#f0edff'),
-        ('S', 'Segmentacion', 'Analisis detallado de segmentos y caracteristicas demograficas.', GREEN, '#e9f8f1'),
-        ('C', 'Patrones de compra', 'Identificacion de habitos, frecuencia y productos mas comprados.', BLUE, '#eaf3ff'),
-        ('P', 'Predicciones', 'Proyecciones de comportamiento y tendencias futuras.', ORANGE, '#fff1e5'),
-        ('%', 'Promociones', 'Rendimiento de campanas y efecto en ventas.', RED, '#ffedf0'),
+        ('G', 'Informe general de ventas', 'Resumen completo de ventas, ingresos y productos más vendidos.', VIOLET, '#f0edff'),
+        ('S', 'Inventario y stock crítico', 'Estado del inventario, productos críticos y rotación de stock.', GREEN, '#e9f8f1'),
+        ('C', 'Predicción de demanda', 'Proyecciones de demanda por producto y temporada.', BLUE, '#eaf3ff'),
+        ('P', 'Promociones recomendadas', 'Análisis de efectividad y sugerencias de promociones.', ORANGE, '#fff1e5'),
+        ('%', 'Planificación de abastecimiento', 'Recomendaciones y planificación de reabastecimiento.', RED, '#ffedf0'),
     )
 
     def __init__(self, parent=None):
@@ -340,7 +340,7 @@ class ReportsView(QWidget):
         layout.setSpacing(16)
 
         layout.addWidget(QLabel('Reportes', objectName='reportPageTitle'))
-        layout.addWidget(QLabel('Crea, visualiza y exporta reportes personalizados con insights clave de tu negocio.', objectName='reportSubtitle'))
+        layout.addWidget(QLabel('Genera y visualiza reportes personalizados para analizar el desempeño de tu negocio.', objectName='reportSubtitle'))
 
         body = QHBoxLayout()
         body.setSpacing(16)
@@ -477,8 +477,8 @@ class ReportsView(QWidget):
         summary.addLayout(copy)
 
         metrics = (
-            ('Consumidores unicos', '25,430', '12.4%'), ('Ventas totales', '$320,850', '15.7%'),
-            ('Ordenes realizadas', '3,450', '9.8%'), ('Ticket promedio', '$92.99', '5.3%'),
+            ('Ventas totales', '$25,430', '12%'), ('Ingresos estimados', '$320,850', '8%'),
+            ('Productos vendidos', '3,450', '4%'), ('Margen promedio', '92.9%', '6%'),
         )
         for label, value, change in metrics:
             summary.addWidget(self._metric_card(label, value, change), 1)
