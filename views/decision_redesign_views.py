@@ -101,8 +101,9 @@ def _icon(text, color, background, size=52):
 class _Page(QWidget):
     """Shared scroll canvas and reference account/date header."""
 
-    def __init__(self, title, subtitle, minimum_width=1160, parent=None):
+    def __init__(self, title, subtitle, sesion, minimum_width=1160, parent=None):
         super().__init__(parent)
+        self.sesion = sesion
         self.setObjectName("page")
         self.setStyleSheet(BASE_STYLE + self.extra_style())
         outer = QVBoxLayout(self)
@@ -138,11 +139,11 @@ class _Page(QWidget):
         bell.setFixedSize(42, 42)
         bell.clicked.connect(lambda: QMessageBox.information(self, "Notificaciones", "Tienes 1 notificación pendiente."))
         row.addWidget(bell)
-        row.addWidget(_icon("AA", PURPLE, "#e6e0ff", 42))
+        row.addWidget(_icon(self.sesion.iniciales, PURPLE, "#e6e0ff", 42))
         account = QVBoxLayout()
         account.setSpacing(0)
-        account.addWidget(_label("Administrador", "accountName"))
-        account.addWidget(_label("Administrador", "small"))
+        account.addWidget(_label(self.sesion.usuario, "accountName"))
+        account.addWidget(_label(self.sesion.rol_mostrar, "small"))
         row.addLayout(account)
         row.addWidget(_label("v", "accountName"))
         return row
@@ -169,10 +170,11 @@ class RecommendationsView(_Page):
         ("👕", "Abastecimiento", "Monitorear playeras K-pop", "Aumento en la tasa de rotación. Se recomienda monitorear\nniveles de stock para evitar quiebres.", "+10%", "Baja", "76%", "Jóvenes 13-25 años", "Fans de K-pop"),
     )
 
-    def __init__(self, parent=None):
+    def __init__(self, sesion, parent=None):
         super().__init__(
             "Recomendaciones inteligentes",
             "Sugerencias personalizadas para impulsar tus ventas y optimizar tu inventario.",
+            sesion,
             1180,
             parent,
         )
@@ -354,10 +356,11 @@ class SupplyView(_Page):
         ("💡", "Lámpara LED", "Hogar", 32, 9, 15, 20, 28, "19/08/2025", "Baja"),
     )
 
-    def __init__(self, parent=None):
+    def __init__(self, sesion, parent=None):
         super().__init__(
             "Planificación del abastecimiento",
             "Convierte el análisis de ventas en acciones de compra. Define qué reponer, cuánto y cuándo.",
+            sesion,
             1220,
             parent,
         )
@@ -641,8 +644,8 @@ class ReportsView(_Page):
         ("|||", "Temporadas y tendencias", "Análisis de estacionalidad y tendencias\nde mercado.", RED, "#ffeaef"),
     )
 
-    def __init__(self, parent=None):
-        super().__init__("Reportes", "Genera y visualiza reportes personalizados para analizar el desempeño de tu negocio.", 1200, parent)
+    def __init__(self, sesion, parent=None):
+        super().__init__("Reportes", "Genera y visualiza reportes personalizados para analizar el desempeño de tu negocio.", sesion, 1200, parent)
         self.content.addWidget(self._filters())
         body = QHBoxLayout()
         body.setSpacing(10)

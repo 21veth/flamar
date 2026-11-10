@@ -228,8 +228,9 @@ class _BaseIntelligenceView(QWidget):
     PAGE_COLOR = PURPLE
     PAGE_BACKGROUND = "#eee9ff"
 
-    def __init__(self, parent=None):
+    def __init__(self, sesion, parent=None):
         super().__init__(parent)
+        self.sesion = sesion
         self.setObjectName("intelligencePage")
         self.setStyleSheet(self._styles())
         root = QVBoxLayout(self)
@@ -268,15 +269,15 @@ class _BaseIntelligenceView(QWidget):
         bell.setAlignment(Qt.AlignCenter)
         bell.setFixedWidth(48)
         layout.addWidget(bell)
-        avatar = QLabel("AA")
+        avatar = QLabel(self.sesion.iniciales)
         avatar.setObjectName("avatar")
         avatar.setAlignment(Qt.AlignCenter)
         avatar.setFixedSize(38, 38)
         layout.addWidget(avatar)
         account = QVBoxLayout()
         account.setSpacing(0)
-        account.addWidget(_label("Administrador", "accountName"))
-        account.addWidget(_label("Administrador", "accountRole"))
+        account.addWidget(_label(self.sesion.usuario, "accountName"))
+        account.addWidget(_label(self.sesion.rol_mostrar, "accountRole"))
         layout.addLayout(account)
         layout.addSpacing(24)
         layout.addWidget(_label("⌄", "accountName"))

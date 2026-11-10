@@ -159,8 +159,9 @@ class DropZone(QFrame):
 
 
 class BaseContentView(QWidget):
-    def __init__(self,title,subtitle,greeting=None,parent=None):
+    def __init__(self,title,subtitle,sesion,greeting=None,parent=None):
         super().__init__(parent,objectName='corePage'); self.setStyleSheet(STYLES)
+        self.sesion=sesion
         root=QVBoxLayout(self); root.setContentsMargins(0,0,0,0)
         scroll=QScrollArea(objectName='coreScroll'); scroll.setWidgetResizable(True); scroll.setFrameShape(QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -176,8 +177,8 @@ class BaseContentView(QWidget):
         self.shell_header=QWidget(objectName='shellHeader'); shell=QHBoxLayout(self.shell_header); shell.setContentsMargins(0,2,0,0); shell.setSpacing(13)
         date=QFrame(objectName='dateFrame'); date.setFixedWidth(242); dl=QHBoxLayout(date); dl.setContentsMargins(13,8,10,8); dl.addWidget(LineIcon('calendar',18)); dl.addWidget(QLabel('01/08/2025 - 31/08/2025',objectName='dateText'),1); dl.addWidget(LineIcon('chevron',14)); shell.addWidget(date)
         shell.addWidget(LineIcon('bell',24))
-        avatar=QLabel('AA',objectName='topAvatar'); avatar.setAlignment(Qt.AlignCenter); avatar.setFixedSize(40,40); shell.addWidget(avatar)
-        account=QVBoxLayout(); account.setSpacing(0); account.addWidget(QLabel('Administrador',objectName='accountName')); account.addWidget(QLabel('Administrador',objectName='accountRole')); shell.addLayout(account)
+        avatar=QLabel(self.sesion.iniciales,objectName='topAvatar'); avatar.setAlignment(Qt.AlignCenter); avatar.setFixedSize(40,40); shell.addWidget(avatar)
+        account=QVBoxLayout(); account.setSpacing(0); account.addWidget(QLabel(self.sesion.usuario,objectName='accountName')); account.addWidget(QLabel(self.sesion.rol_mostrar,objectName='accountRole')); shell.addLayout(account)
         shell.addWidget(QLabel('⌄',objectName='muted')); row.addWidget(self.shell_header,alignment=Qt.AlignTop); return row
 
     @staticmethod
@@ -221,8 +222,8 @@ class BaseContentView(QWidget):
 
 
 class DashboardView(BaseContentView):
-    def __init__(self,parent=None):
-        super().__init__('Dashboard','Aquí tienes un resumen del desempeño de tu negocio.',parent=parent)
+    def __init__(self,sesion,parent=None):
+        super().__init__('Dashboard','Aquí tienes un resumen del desempeño de tu negocio.',sesion,parent=parent)
         self.body.addLayout(self.metrics((
             ('bars','$ 25,430','Ventas del mes','↑ 12%',PURPLE,'#f0edff'),('money','$ 320,850','Ingresos estimados','↑ 8%',GREEN,'#e8f8f1'),
             ('stock','24','Productos con stock\ncrítico','↑ 33%',RED,'#ffedf0'),('megaphone','6','Campañas sugeridas','↑ 50%',ORANGE,'#fff5e5')),115)); self.body.addSpacing(6)
@@ -265,8 +266,8 @@ IMPORT_HEADERS=('Fecha','Producto','Categoría','Cantidad','Precio (USD)','Stock
 
 
 class ImportDataView(BaseContentView):
-    def __init__(self,parent=None):
-        super().__init__('Importar datos','Carga y procesa archivos para integrarlos con tus análisis.',parent=parent); self.selected_path=None
+    def __init__(self,sesion,parent=None):
+        super().__init__('Importar datos','Carga y procesa archivos para integrarlos con tus análisis.',sesion,parent=parent); self.selected_path=None
         self.body.addLayout(self._types()); self.body.addWidget(self._stepper())
         top=QGridLayout(); top.setSpacing(10); top.addWidget(self._drop(),0,0); top.addWidget(self._details(),0,1); top.setColumnStretch(0,11); top.setColumnStretch(1,10); self.body.addLayout(top)
         self.body.addWidget(self._preview())
@@ -341,8 +342,8 @@ PRODUCTS=(('P001','🎧  Audífonos Bluetooth','Tecnología','8','20','TechSuppl
 
 
 class ProductsView(BaseContentView):
-    def __init__(self,parent=None):
-        super().__init__('Productos e inventario','Gestiona tu catálogo de productos, niveles de inventario y abastecimiento.',parent=parent)
+    def __init__(self,sesion,parent=None):
+        super().__init__('Productos e inventario','Gestiona tu catálogo de productos, niveles de inventario y abastecimiento.',sesion,parent=parent)
         self.body.addSpacing(9); self.body.addLayout(self.metrics((('box','248','Productos activos','↑ 12%',PURPLE,'#f0edff'),('stock','20','Stock crítico','↑ 33%',RED,'#ffedf0'),('truck','16','En pedido','↓ 20%',BLUE,'#eaf3ff'),('tag','18','Categorías','↑ 6%',ORANGE,'#fff5e5')),92)); self.body.addWidget(self._filters()); self.body.addWidget(self._listing())
         bottom=QGridLayout(); bottom.setSpacing(10); bottom.addWidget(self._seasonal(),0,0,1,3); bottom.addWidget(self._quick_alerts(),0,3,1,2); self.body.addLayout(bottom)
 
@@ -377,8 +378,8 @@ class ProductsView(BaseContentView):
 
 
 class SalesView(BaseContentView):
-    def __init__(self,parent=None):
-        super().__init__('Análisis de ventas','Analiza el comportamiento histórico de tus ventas para identificar tendencias, productos clave y oportunidades de crecimiento.',parent=parent)
+    def __init__(self,sesion,parent=None):
+        super().__init__('Análisis de ventas','Analiza el comportamiento histórico de tus ventas para identificar tendencias, productos clave y oportunidades de crecimiento.',sesion,parent=parent)
         self.body.addSpacing(22); self.body.addLayout(self.metrics((('bars','$ 25,430','Ventas totales','↑ 12%',PURPLE,'#f0edff'),('box','3,850','Unidades vendidas','↑ 8%',GREEN,'#e8f8f1'),('tag','$ 6.60','Ticket promedio','↑ 4%',RED,'#ffedf0'),('trophy','Ropa','Categoría líder','↑ 6%',ORANGE,'#fff5e5','35% de las ventas')),114)); self.body.addSpacing(7)
         charts=QGridLayout(); charts.setSpacing(10); evolution=self.section('Evolución de ventas   ⓘ',SalesChart(True),'●  Ventas (USD)     ○  Unidades vendidas        Ventas'); participation=self.section('Participación por categoría   ⓘ',Donut('$25,430'),'Ventas'); evolution.setFixedHeight(315); participation.setFixedHeight(315); charts.addWidget(evolution,0,0,1,3); charts.addWidget(participation,0,3,1,2); self.body.addLayout(charts)
         tables=QGridLayout(); tables.setSpacing(10); tables.addWidget(self._top_products(),0,0,1,3); tables.addWidget(self._season_sales(),0,3,1,2); self.body.addLayout(tables); self.body.addWidget(self._insight())

@@ -160,8 +160,9 @@ class HomeView(QWidget):
         ('Reportes', 'reportes', 'report', ReportsView),
     )
 
-    def __init__(self):
+    def __init__(self, sesion):
         super().__init__()
+        self.sesion = sesion
         self.setWindowTitle('Flamar Analytics')
         self.setMinimumSize(1120, 700)
         self.resize(1680, 945)
@@ -175,7 +176,7 @@ class HomeView(QWidget):
         self.pages = QStackedWidget()
         self.page_views = {}
         for _, key, _, view_class in self.PAGE_ITEMS + self.INTELLIGENCE_ITEMS + self.DECISION_ITEMS:
-            page = view_class()
+            page = view_class(self.sesion)
             responsive_page = ResponsivePageView(page)
             self.page_views[key] = responsive_page
             self.pages.addWidget(responsive_page)
@@ -260,6 +261,17 @@ class HomeView(QWidget):
         logout.clicked.connect(self.logout_requested.emit)
         self.logout_button = logout
         layout.addWidget(logout)
+        account = QHBoxLayout()
+        avatar = QLabel(self.sesion.iniciales, objectName='sidebarAvatar')
+        avatar.setAlignment(Qt.AlignCenter)
+        avatar.setFixedSize(46, 46)
+        account.addWidget(avatar)
+        account_text = QVBoxLayout()
+        account_text.setSpacing(0)
+        account_text.addWidget(QLabel(self.sesion.usuario, objectName='accountName'))
+        account_text.addWidget(QLabel(self.sesion.rol_mostrar, objectName='accountRole'))
+        account.addLayout(account_text)
+        layout.addLayout(account)
         return sidebar
 
     def _nav_button(self, item, child=False):

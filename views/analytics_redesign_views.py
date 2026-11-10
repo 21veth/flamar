@@ -37,7 +37,7 @@ TINTS = {
 
 
 class _Header(QWidget):
-    def __init__(self, title, subtitle='', greeting='', date='01/08/2025 - 31/08/2025', parent=None):
+    def __init__(self, title, sesion, subtitle='', greeting='', date='01/08/2025 - 31/08/2025', parent=None):
         super().__init__(parent)
         self.setMinimumHeight(106 if greeting else 66)
         layout = QHBoxLayout(self)
@@ -58,20 +58,20 @@ class _Header(QWidget):
         bell.setAlignment(Qt.AlignCenter)
         bell.setFixedSize(36, 36)
         layout.addWidget(bell, alignment=Qt.AlignTop)
-        avatar = QLabel('AA', objectName='avatar')
+        avatar = QLabel(sesion.iniciales, objectName='avatar')
         avatar.setAlignment(Qt.AlignCenter)
         avatar.setFixedSize(42, 42)
         layout.addWidget(avatar, alignment=Qt.AlignTop)
         account = QVBoxLayout()
         account.setSpacing(1)
-        account.addWidget(QLabel('Administrador', objectName='accountName'))
-        account.addWidget(QLabel('Administrador', objectName='accountRole'))
+        account.addWidget(QLabel(sesion.usuario, objectName='accountName'))
+        account.addWidget(QLabel(sesion.rol_mostrar, objectName='accountRole'))
         layout.addLayout(account)
         layout.addWidget(QLabel('v', objectName='chevron'), alignment=Qt.AlignTop)
 
 
 class _Page(QWidget):
-    def __init__(self, title, subtitle='', greeting='', date='01/08/2025 - 31/08/2025', parent=None):
+    def __init__(self, title, sesion, subtitle='', greeting='', date='01/08/2025 - 31/08/2025', parent=None):
         super().__init__(parent)
         self.setObjectName('analyticsPage')
         self.setStyleSheet(_STYLES)
@@ -86,7 +86,7 @@ class _Page(QWidget):
         self.layout = QVBoxLayout(self.content)
         self.layout.setContentsMargins(22, 17, 22, 22)
         self.layout.setSpacing(13)
-        self.layout.addWidget(_Header(title, subtitle, greeting, date))
+        self.layout.addWidget(_Header(title, sesion, subtitle, greeting, date))
         scroll.setWidget(self.content)
         outer.addWidget(scroll)
 
@@ -254,8 +254,8 @@ class SegmentationView(_Page):
         ('Compradores estacionales', 'Concentran sus compras en temporadas específicas\ndel año (ej. escolar, navidad, halloween).', '30% del total', BLUE, 'CE'),
     )
 
-    def __init__(self, parent=None):
-        super().__init__('Segmentación comercial', 'Descubre y analiza segmentos de clientes para diseñar estrategias comerciales más efectivas.', parent=parent)
+    def __init__(self, sesion, parent=None):
+        super().__init__('Segmentación comercial', sesion, 'Descubre y analiza segmentos de clientes para diseñar estrategias comerciales más efectivas.', parent=parent)
         self.layout.addLayout(self._metrics())
         body = QHBoxLayout()
         body.setSpacing(12)
@@ -364,8 +364,8 @@ class PurchasePatternsView(_Page):
         ('10', 'AC   Accesorios', 'LL   Llavero', '5.9%', '45.3%', 'Baja', 'Ver detalles'),
     )
 
-    def __init__(self, parent=None):
-        super().__init__('Patrones de compra', 'Descubre qué productos se compran juntos para crear mejores promociones y estrategias comerciales.', parent=parent)
+    def __init__(self, sesion, parent=None):
+        super().__init__('Patrones de compra', sesion, 'Descubre qué productos se compran juntos para crear mejores promociones y estrategias comerciales.', parent=parent)
         self.layout.addWidget(self._filters())
         body = QHBoxLayout()
         body.setSpacing(12)
@@ -455,8 +455,8 @@ class DemandView(_Page):
         ('KP   Figura K-pop', '15,300', '76%', 'Medio', 'Reabastecer'),
     )
 
-    def __init__(self, parent=None):
-        super().__init__('Estimación de demanda', 'Predice la demanda futura de tus productos utilizando modelos de análisis de series de tiempo y patrones estacionales.', 'Hola, Administrador', '01/08/2025 - 31/08/2026', parent)
+    def __init__(self, sesion, parent=None):
+        super().__init__('Estimación de demanda', sesion, 'Predice la demanda futura de tus productos utilizando modelos de análisis de series de tiempo y patrones estacionales.', f'Hola, {sesion.usuario}', '01/08/2025 - 31/08/2026', parent)
         self.layout.addWidget(self._filters())
         self.layout.addLayout(self._metrics())
         body = QHBoxLayout()

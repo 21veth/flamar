@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QMessageBox, QPushButton, QVBoxLayout, QWidget,
 )
 
+from controllers.login_controller import LoginController
 from views.home_view import HomeView
 from views.ui_components import BrandWidget, LogoMark
 
@@ -68,12 +69,17 @@ class HeroPanel(QFrame):
 
 
 class LoginView(QWidget):
-    def __init__(self):
+    def __init__(self, auth_service=None):
         super().__init__()
         self.setWindowTitle('Flamar Analytics - Iniciar sesión')
         self.setMinimumSize(720, 560)
         self.resize(1280, 760)
         self.home_view = None
+        self._controller = LoginController(auth_service)
+        self._controller.autenticado.connect(self._on_autenticado)
+        self._controller.fallo.connect(self._on_fallo)
+        self._controller.finalizado.connect(self._on_finalizado)
+        self._pending_close = False
         self.setStyleSheet(self._styles())
 
         self.root = QHBoxLayout(self)
@@ -134,7 +140,8 @@ class LoginView(QWidget):
 
         options = QHBoxLayout()
         remember = QCheckBox('Mantener sesión iniciada')
-        remember.setChecked(True)
+        remember.setChecked(False)
+        remember.setEnabled(False)
         options.addWidget(remember)
         options.addStretch()
         forgot = QPushButton('¿Olvidaste tu contraseña?', objectName='linkButton')
@@ -147,6 +154,7 @@ class LoginView(QWidget):
         login = QPushButton('Entrar a Flamar  →', objectName='loginButton')
         login.setCursor(Qt.PointingHandCursor)
         login.clicked.connect(self.handle_login)
+        self.login_button = login
         form.addWidget(login)
         form.addSpacing(14)
 
@@ -166,24 +174,64 @@ class LoginView(QWidget):
 
     def handle_login(self):
         username = self.user_input.text().strip()
-        password = self.password_input.text().strip()
+        password = self.password_input.text()
         if not username or not password:
             QMessageBox.warning(self, 'Campos incompletos', 'Completa el usuario y la contraseña.')
             return
-        if self.home_view is None:
-            self.home_view = HomeView()
-            self.home_view.logout_requested.connect(self.handle_logout)
+        if not self._controller.autenticar(username, password):
+            return
+        self.login_button.setEnabled(False)
+        self.user_input.setEnabled(False)
+        self.password_input.setEnabled(False)
+
+    def _on_autenticado(self, sesion):
+        if self._pending_close:
+            return
+        self.password_input.clear()
+        if self.home_view is not None:
+            self.home_view.close()
+            self.home_view.deleteLater()
+            self.home_view = None
+        self.home_view = HomeView(sesion)
+        self.home_view.logout_requested.connect(self.handle_logout)
         self.home_view.show()
         self.close()
 
+    def _on_fallo(self, mensaje):
+        if self._pending_close:
+            return
+        QMessageBox.warning(self, 'Inicio de sesión', mensaje)
+
+    def _on_finalizado(self):
+        self.login_button.setEnabled(True)
+        self.user_input.setEnabled(True)
+        self.password_input.setEnabled(True)
+        self.password_input.clear()
+        self.password_input.setFocus()
+        if self._pending_close:
+            self.close()
+
     def handle_logout(self):
-        self.home_view.hide()
+        self._pending_close = False
+        if self.home_view is not None:
+            self.home_view.close()
+            self.home_view.deleteLater()
+            self.home_view = None
         self.password_input.clear()
         self.show()
         self.activateWindow()
 
     def _show_recovery(self):
         QMessageBox.information(self, 'Recuperar acceso', 'Contacta al administrador de tu organización para restablecer tu contraseña.')
+
+    def closeEvent(self, event):
+        if self._controller.en_progreso():
+            event.ignore()
+            self._pending_close = True
+            self.hide()
+            return
+        self._pending_close = False
+        event.accept()
 
     @staticmethod
     def _styles():
