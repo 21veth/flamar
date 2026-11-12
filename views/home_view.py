@@ -8,7 +8,8 @@ from PySide6.QtWidgets import (
 from views.analytics_redesign_views import DemandView, PurchasePatternsView, SegmentationView
 from views.core_inventory_views import DashboardView, ImportDataView, ProductsView, SalesView
 from views.decision_redesign_views import RecommendationsView, ReportsView, SupplyView
-from views.intelligence_redesign_views import CalendarView, SmartRecommendationsView, TrendsView
+from views.intelligence_redesign_views import CalendarView, SmartRecommendationsView
+from views.tendencias_view import TrendsView
 from views.ui_components import BrandWidget, LogoMark
 
 
