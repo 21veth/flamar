@@ -1,0 +1,10 @@
+Código del producto,Producto,Categoría,Fecha del movimiento,Tipo de movimiento,Cantidad,Stock anterior,Stock resultante,Fecha de vencimiento
+P001,Atún en lata 170 g,Conservas,01/10/2026,Entrada,60,0,60,20/11/2026
+P001,Atún en lata 170 g,Conservas,05/10/2026,Salida,18,60,42,
+P002,Durazno en almíbar 820 g,Conservas,02/10/2026,Entrada,40,0,40,15/11/2026
+P003,Arroz extra 5 kg,Abarrotes,03/10/2026,Entrada,75,0,75,30/12/2026
+P003,Arroz extra 5 kg,Abarrotes,06/10/2026,Salida,25,75,50,
+P004,Azúcar rubia 1 kg,Abarrotes,04/10/2026,Ajuste,-5,30,25,
+P005,Leche evaporada 400 g,Lácteos,04/10/2026,Entrada,48,0,48,25/11/2026
+P006,Aceite vegetal 1 L,Abarrotes,05/10/2026,Entrada,36,0,36,10/01/2027
+P006,Aceite vegetal 1 L,Abarrotes,07/10/2026,Salida,12,36,24,

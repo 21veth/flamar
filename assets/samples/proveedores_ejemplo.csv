@@ -1,0 +1,8 @@
+Proveedor,Producto,Categoría,Precio unitario,Cantidad mínima,Cantidad de bonificación,Producto de bonificación,Costo total,Fecha de cotización,Vigencia
+Distribuidora Andina,Atún en lata 170 g,Conservas,5.20,100,10,Atún en lata 170 g,520.00,05/11/2026,20/12/2026
+Comercial Pacífico,Atún en lata 170 g,Conservas,5.05,120,0,,606.00,05/11/2026,18/11/2026
+Distribuidora Andina,Durazno en almíbar 820 g,Conservas,8.60,80,8,Durazno en almíbar 820 g,688.00,05/11/2026,20/12/2026
+Comercial Pacífico,Durazno en almíbar 820 g,Conservas,8.95,60,12,Durazno en almíbar 820 g,537.00,05/11/2026,18/11/2026
+AgroSuministros,Arroz extra 5 kg,Abarrotes,17.80,50,5,Arroz extra 1 kg,890.00,05/11/2026,30/12/2026
+Comercial Pacífico,Azúcar rubia 1 kg,Abarrotes,4.05,200,20,Azúcar rubia 1 kg,810.00,05/11/2026,18/11/2026
+AgroSuministros,Leche evaporada 400 g,Lácteos,4.60,150,15,Leche evaporada 400 g,690.00,05/11/2026,30/12/2026
