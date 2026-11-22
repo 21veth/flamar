@@ -38,6 +38,8 @@ CREATE TABLE productos (
     nombre VARCHAR(150) NOT NULL,
     id_categoria BIGINT NOT NULL,
     activo BOOLEAN NOT NULL DEFAULT TRUE,
+    marca VARCHAR(100),
+    presentacion VARCHAR(100),
 
     CONSTRAINT pk_productos PRIMARY KEY (id_producto),
     CONSTRAINT uq_productos_codigo UNIQUE (codigo),
@@ -296,6 +298,142 @@ CREATE TABLE planes_abastecimiento (
 );
 
 -- =====================================================
+-- 11. PROVEEDORES
+-- =====================================================
+CREATE TABLE proveedores (
+    id_proveedor BIGINT GENERATED ALWAYS AS IDENTITY,
+    nombre VARCHAR(255) NOT NULL,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+
+    CONSTRAINT pk_proveedores PRIMARY KEY (id_proveedor),
+    CONSTRAINT proveedores_nombre_key UNIQUE (nombre)
+);
+
+-- =====================================================
+-- 12. COTIZACIONES
+-- Una cotizacion por archivo importado.
+-- =====================================================
+CREATE TABLE cotizaciones (
+    id_cotizacion BIGINT GENERATED ALWAYS AS IDENTITY,
+    id_proveedor BIGINT NOT NULL,
+    id_importacion BIGINT NOT NULL,
+    estado VARCHAR(20) NOT NULL DEFAULT 'vigente',
+
+    CONSTRAINT pk_cotizaciones PRIMARY KEY (id_cotizacion),
+    CONSTRAINT cotizaciones_id_importacion_key UNIQUE (id_importacion),
+
+    CONSTRAINT fk_cotizaciones_proveedor
+        FOREIGN KEY (id_proveedor) REFERENCES proveedores (id_proveedor),
+    CONSTRAINT fk_cotizaciones_importacion
+        FOREIGN KEY (id_importacion) REFERENCES importaciones (id_importacion),
+
+    CONSTRAINT ck_cotizaciones_estado
+        CHECK (estado IN ('vigente', 'reemplazada'))
+);
+
+-- =====================================================
+-- 13. DETALLE DE COTIZACION
+-- Una oferta por producto dentro de una cotizacion.
+-- descuento_porcentaje se expresa como fraccion (0 a 1).
+-- =====================================================
+CREATE TABLE detalle_cotizacion (
+    id_detalle_cotizacion BIGINT GENERATED ALWAYS AS IDENTITY,
+    id_cotizacion BIGINT NOT NULL,
+    id_producto BIGINT NOT NULL,
+    precio_unitario NUMERIC(12,2) NOT NULL,
+    stock_disponible INTEGER NOT NULL,
+    compra_minima INTEGER NOT NULL,
+    descuento_desde INTEGER,
+    descuento_porcentaje NUMERIC(5,4) NOT NULL DEFAULT 0,
+    entrega_dias INTEGER NOT NULL,
+
+    CONSTRAINT pk_detalle_cotizacion PRIMARY KEY (id_detalle_cotizacion),
+    CONSTRAINT uq_detalle_cotizacion_producto
+        UNIQUE (id_cotizacion, id_producto),
+
+    CONSTRAINT fk_detalle_cotizacion_cotizacion
+        FOREIGN KEY (id_cotizacion) REFERENCES cotizaciones (id_cotizacion),
+    CONSTRAINT fk_detalle_cotizacion_producto
+        FOREIGN KEY (id_producto) REFERENCES productos (id_producto),
+
+    CONSTRAINT ck_detalle_cotizacion_precio CHECK (precio_unitario >= 0),
+    CONSTRAINT ck_detalle_cotizacion_stock CHECK (stock_disponible >= 0),
+    CONSTRAINT ck_detalle_cotizacion_compra_minima CHECK (compra_minima > 0),
+    CONSTRAINT ck_detalle_cotizacion_descuento_desde CHECK (descuento_desde IS NULL OR descuento_desde > 0),
+    CONSTRAINT ck_detalle_cotizacion_descuento_porcentaje
+        CHECK (descuento_porcentaje >= 0 AND descuento_porcentaje <= 1),
+    CONSTRAINT ck_detalle_cotizacion_entrega CHECK (entrega_dias >= 0)
+);
+
+-- =====================================================
+-- 14. COMPARACIONES
+-- =====================================================
+CREATE TABLE comparaciones (
+    id_comparacion BIGINT GENERATED ALWAYS AS IDENTITY,
+    nombre VARCHAR(150) NOT NULL,
+    tipo_productos VARCHAR(100),
+    id_usuario BIGINT NOT NULL,
+    fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    estado VARCHAR(20) NOT NULL DEFAULT 'borrador',
+    id_proveedor_recomendado BIGINT,
+    costo_proveedor_recomendado NUMERIC(14,2),
+    costo_compra_combinada NUMERIC(14,2),
+    costo_referencia NUMERIC(14,2),
+    ahorro_estimado NUMERIC(14,2),
+    justificacion TEXT,
+    proveedor_recomendado_nombre VARCHAR(255),
+
+    CONSTRAINT pk_comparaciones PRIMARY KEY (id_comparacion),
+
+    CONSTRAINT fk_comparaciones_usuario
+        FOREIGN KEY (id_usuario) REFERENCES usuarios (id_usuario),
+    CONSTRAINT fk_comparaciones_proveedor_recomendado
+        FOREIGN KEY (id_proveedor_recomendado) REFERENCES proveedores (id_proveedor),
+
+    CONSTRAINT ck_comparaciones_estado
+        CHECK (estado IN ('borrador', 'completada')),
+    CONSTRAINT ck_comparaciones_costo_proveedor CHECK (costo_proveedor_recomendado >= 0),
+    CONSTRAINT ck_comparaciones_costo_combinado CHECK (costo_compra_combinada >= 0),
+    CONSTRAINT ck_comparaciones_costo_referencia CHECK (costo_referencia >= 0)
+);
+
+-- =====================================================
+-- 15. DETALLE DE COMPARACION
+-- Una fila por oferta evaluada dentro de una comparacion.
+-- =====================================================
+CREATE TABLE detalle_comparacion (
+    id_detalle_comparacion BIGINT GENERATED ALWAYS AS IDENTITY,
+    id_comparacion BIGINT NOT NULL,
+    id_detalle_cotizacion BIGINT NOT NULL,
+    cantidad_requerida INTEGER NOT NULL,
+    precio_evaluado NUMERIC(12,2),
+    costo_total_linea NUMERIC(14,2),
+    oferta_valida BOOLEAN NOT NULL DEFAULT TRUE,
+    seleccionado_combinada BOOLEAN NOT NULL DEFAULT FALSE,
+    observacion TEXT,
+    proveedor_nombre VARCHAR(255),
+    producto_codigo VARCHAR(30),
+    producto_nombre VARCHAR(150),
+    categoria_nombre VARCHAR(100),
+
+    CONSTRAINT pk_detalle_comparacion PRIMARY KEY (id_detalle_comparacion),
+    CONSTRAINT uq_detalle_comparacion_oferta
+        UNIQUE (id_comparacion, id_detalle_cotizacion),
+
+    CONSTRAINT fk_detalle_comparacion_comparacion
+        FOREIGN KEY (id_comparacion) REFERENCES comparaciones (id_comparacion),
+    CONSTRAINT fk_detalle_comparacion_oferta
+        FOREIGN KEY (id_detalle_cotizacion)
+        REFERENCES detalle_cotizacion (id_detalle_cotizacion),
+
+    CONSTRAINT ck_detalle_comparacion_cantidad CHECK (cantidad_requerida > 0),
+    CONSTRAINT ck_detalle_comparacion_precio CHECK (precio_evaluado >= 0),
+    CONSTRAINT ck_detalle_comparacion_total CHECK (costo_total_linea >= 0),
+    CONSTRAINT ck_detalle_comparacion_seleccion
+        CHECK (NOT seleccionado_combinada OR oferta_valida)
+);
+
+-- =====================================================
 -- INDICES PARA CONSULTAS Y RELACIONES
 -- Las PRIMARY KEY y UNIQUE ya crean sus propios indices.
 -- =====================================================
@@ -330,6 +468,18 @@ CREATE INDEX idx_planes_usuario
 
 CREATE INDEX idx_planes_prediccion
     ON planes_abastecimiento (id_prediccion);
+
+CREATE INDEX idx_cotizaciones_proveedor
+    ON cotizaciones (id_proveedor);
+
+CREATE INDEX idx_detalle_cotizacion_producto
+    ON detalle_cotizacion (id_producto);
+
+CREATE INDEX idx_comparaciones_usuario
+    ON comparaciones (id_usuario);
+
+CREATE INDEX idx_detalle_comparacion_oferta
+    ON detalle_comparacion (id_detalle_cotizacion);
 
 -- =====================================================
 -- VISTA: TOTAL DE CADA TICKET

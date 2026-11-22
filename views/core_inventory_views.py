@@ -5,17 +5,20 @@ to match the design references. An integrating shell can hide it with
 ``view.shell_header.hide()`` without affecting the page title or content.
 """
 
-import csv
-from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QDragEnterEvent, QDropEvent, QFont, QLinearGradient, QPainter, QPen
 from PySide6.QtWidgets import (
-    QAbstractItemView, QComboBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout,
+    QAbstractItemView, QComboBox, QFrame, QGridLayout, QHBoxLayout,
     QHeaderView, QLabel, QLineEdit, QPushButton, QScrollArea, QSizePolicy,
     QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
+
+from views.import_catalog_view import CatalogImportTab
+from views.import_inventory_view import InventoryImportTab
+from views.import_sales_view import SalesImportTab
+from views.import_suppliers_view import SuppliersImportTab
 
 
 INK = '#09142f'
@@ -163,11 +166,11 @@ class BaseContentView(QWidget):
         super().__init__(parent,objectName='corePage'); self.setStyleSheet(STYLES)
         self.sesion=sesion
         root=QVBoxLayout(self); root.setContentsMargins(0,0,0,0)
-        scroll=QScrollArea(objectName='coreScroll'); scroll.setWidgetResizable(True); scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll=QScrollArea(objectName='coreScroll'); self.scroll.setWidgetResizable(True); self.scroll.setFrameShape(QFrame.NoFrame)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.content=QWidget(objectName='coreContent'); self.content.setMinimumWidth(0)
         self.body=QVBoxLayout(self.content); self.body.setContentsMargins(22,16,22,18); self.body.setSpacing(12)
-        self.body.addLayout(self._header(title,subtitle,greeting)); scroll.setWidget(self.content); root.addWidget(scroll)
+        self.body.addLayout(self._header(title,subtitle,greeting)); self.scroll.setWidget(self.content); root.addWidget(self.scroll)
 
     def _header(self,title,subtitle,greeting):
         row=QHBoxLayout(); copy=QVBoxLayout(); copy.setSpacing(2)
@@ -257,85 +260,89 @@ class DashboardView(BaseContentView):
         return self.section('Promociones sugeridas   ⓘ',box,'Ver todas')
 
 
-IMPORT_ROWS=(
-    ('01/08/2025','Audífonos Bluetooth','Tecnología','12','35.00','45','TechSupply','Regreso a clases','Verano'),('01/08/2025','Mochila escolar','Accesorios','8','28.50','32','Mundo Escolar','Regreso a clases','Verano'),
-    ('02/08/2025','Playera K-pop','Ropa','25','18.90','60','KStyle','K-pop','Verano'),('02/08/2025','Decoración Halloween','Decoración','40','12.00','120','DecoMundo','Halloween','Otoño'),('03/08/2025','Cuaderno universitario','Papelería','30','6.50','80','OfiPlus','Regreso a clases','Verano'),
-    ('03/08/2025','Figura coleccionable','Colección K-pop','15','24.90','40','KStyle','K-pop','Verano'),('04/08/2025','Lámpara LED','Tecnología','10','22.00','25','TechSupply','Sin campaña','Todo el año'),('04/08/2025','Taza temática','Accesorios','18','9.90','70','DecoMundo','Día del Estudiante','Verano'),
-    ('05/08/2025','Set de stickers','Papelería','50','4.50','200','OfiPlus','Regreso a clases','Verano'),('05/08/2025','Árbol navideño mini','Decoración','5','15.00','35','DecoMundo','Navidad','Invierno'))
-IMPORT_HEADERS=('Fecha','Producto','Categoría','Cantidad','Precio (USD)','Stock actual','Proveedor','Campaña','Temporada')
+class _TypeCard(QFrame):
+    clicked = Signal(int)
+
+    def __init__(self, index, kind, title, subtitle, color, background, parent=None):
+        super().__init__(parent, objectName='typeCard')
+        self.index = index
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFixedHeight(80)
+        self.setProperty('active', False)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.addWidget(IconBadge(kind, color, background, 45))
+        text = QVBoxLayout()
+        text.setSpacing(1)
+        self.title = QLabel(title, objectName='typeTitle')
+        text.addWidget(self.title)
+        text.addWidget(QLabel(subtitle, objectName='muted'))
+        layout.addLayout(text, 1)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit(self.index)
+        super().mousePressEvent(event)
+
+    def set_active(self, active):
+        self.setProperty('active', active)
+        self.title.setObjectName('typeTitleActive' if active else 'typeTitle')
+        for widget in (self, self.title):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
 
 
 class ImportDataView(BaseContentView):
-    def __init__(self,sesion,parent=None):
-        super().__init__('Importar datos','Carga y procesa archivos para integrarlos con tus análisis.',sesion,parent=parent); self.selected_path=None
-        self.body.addLayout(self._types()); self.body.addWidget(self._stepper())
-        top=QGridLayout(); top.setSpacing(10); top.addWidget(self._drop(),0,0); top.addWidget(self._details(),0,1); top.setColumnStretch(0,11); top.setColumnStretch(1,10); self.body.addLayout(top)
-        self.body.addWidget(self._preview())
+    TYPES = (
+        ('bars', 'Ventas', 'Historial de ventas por producto', PURPLE, '#f0edff'),
+        ('stock', 'Inventario', 'Niveles de stock y movimientos', RED, '#ffedf0'),
+        ('money', 'Precios de proveedores', 'Precios y condiciones de compra', GREEN, '#e8f8f1'),
+        ('calendar', 'Catálogo estacional', 'Campañas, temporadas y eventos', BLUE, '#eaf3ff'),
+    )
+
+    def __init__(self, sesion, parent=None):
+        super().__init__(
+            'Importar datos',
+            'Carga y procesa archivos para integrarlos con tus análisis.',
+            sesion,
+            parent=parent,
+        )
+        self.type_cards = []
+        self.body.addLayout(self._types())
+
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.tab_container = QWidget()
+        self.tab_layout = QVBoxLayout(self.tab_container)
+        self.tab_layout.setContentsMargins(0, 0, 0, 0)
+        self.tab_layout.setSpacing(0)
+        self.tabs = (
+            SalesImportTab(self),
+            InventoryImportTab(self),
+            SuppliersImportTab(self, sesion),
+            CatalogImportTab(self),
+        )
+        for tab in self.tabs:
+            self.tab_layout.addWidget(tab)
+            tab.hide()
+        self.body.addWidget(self.tab_container, 1)
+        self._select_type(0)
 
     def _types(self):
-        grid=QGridLayout(); grid.setSpacing(10)
-        for i,(kind,title,sub,color,bg) in enumerate((('bars','Ventas','Historial de ventas por producto',PURPLE,'#f0edff'),('stock','Inventario','Niveles de stock y movimientos',RED,'#ffedf0'),('money','Precios de proveedores','Precios y condiciones de compra',GREEN,'#e8f8f1'),('calendar','Catálogo estacional','Campañas, temporadas y eventos',BLUE,'#eaf3ff'))):
-            card=QFrame(objectName='typeActive' if i==0 else 'card'); card.setFixedHeight(80); lay=QHBoxLayout(card); lay.addWidget(IconBadge(kind,color,bg,45)); tx=QVBoxLayout(); tx.addWidget(QLabel(title,objectName='typeTitle')); tx.addWidget(QLabel(sub,objectName='muted')); lay.addLayout(tx,1); grid.addWidget(card,0,i); grid.setColumnStretch(i,1)
+        grid = QGridLayout()
+        grid.setSpacing(10)
+        for index, (kind, title, subtitle, color, background) in enumerate(self.TYPES):
+            card = _TypeCard(index, kind, title, subtitle, color, background)
+            card.clicked.connect(self._select_type)
+            grid.addWidget(card, 0, index)
+            grid.setColumnStretch(index, 1)
+            self.type_cards.append(card)
         return grid
 
-    def _stepper(self):
-        card=self.card(); card.setFixedHeight(72); lay=QHBoxLayout(card); lay.setContentsMargins(14,10,14,10)
-        for i,(title,sub) in enumerate((('Seleccionar archivo','Carga tu archivo en formato CSV o Excel'),('Validar datos','Revisa y corrige posibles errores'),('Procesar','Integra los datos al sistema')),1):
-            num=QLabel(str(i),objectName='stepActive' if i==1 else 'step'); num.setAlignment(Qt.AlignCenter); num.setFixedSize(36,36); lay.addWidget(num); tx=QVBoxLayout(); tx.addWidget(QLabel(title,objectName='stepTitleActive' if i==1 else 'rowTitle')); tx.addWidget(QLabel(sub,objectName='muted')); lay.addLayout(tx)
-            if i<3: line=QFrame(objectName='line'); line.setFixedHeight(1); lay.addWidget(line,1)
-        return card
-
-    def _drop(self):
-        panel=DropZone(); panel.setFixedHeight(272); panel.file_dropped.connect(self._load_file); lay=QVBoxLayout(panel); lay.setSpacing(3); lay.addStretch(); lay.addWidget(IconBadge('upload',PURPLE,'#f8f7ff',60),alignment=Qt.AlignCenter); lay.addWidget(QLabel('Arrastra y suelta tu archivo aquí',objectName='uploadTitle'),alignment=Qt.AlignCenter); lay.addWidget(QLabel('o haz clic para seleccionar',objectName='muted'),alignment=Qt.AlignCenter)
-        choose=QPushButton('Seleccionar archivo',objectName='secondaryButton'); choose.setFixedWidth(250); choose.clicked.connect(self._choose_file); lay.addWidget(choose,alignment=Qt.AlignCenter); lay.addWidget(QLabel('Formatos soportados: CSV, XLSX, XLS\nTamaño máximo: 50 MB',objectName='muted'),alignment=Qt.AlignCenter); lay.addStretch(); return panel
-
-    def _details(self):
-        card=self.card(); card.setFixedHeight(272); lay=QVBoxLayout(card); lay.setContentsMargins(14,11,14,11); head=QHBoxLayout(); head.addWidget(QLabel('Detalles del archivo',objectName='sectionTitle')); head.addStretch(); head.addWidget(QLabel('Archivo listo para validar',objectName='goodChip')); lay.addLayout(head)
-        self.file_name=QLabel('ventas_agosto_2025.xlsx',objectName='detailValue'); self.file_type=QLabel('Excel (.xlsx)',objectName='detailValue'); self.file_size=QLabel('2.4 MB',objectName='detailValue'); self.record_count=QLabel('1,248',objectName='detailValue'); self.modified=QLabel('18/08/2025 10:24 a. m.',objectName='detailValue')
-        for icon,name,value in (('▣','Nombre del archivo',self.file_name),('▤','Tipo de archivo',self.file_type),('●','Tamaño del archivo',self.file_size),('☷','Registros detectados',self.record_count),('□','Fecha de modificación',self.modified)):
-            row=QFrame(objectName='detailRow'); rl=QHBoxLayout(row); rl.setContentsMargins(7,3,7,3); badge=QLabel(icon,objectName='detailIcon'); badge.setAlignment(Qt.AlignCenter); badge.setFixedSize(27,27); rl.addWidget(badge); rl.addWidget(QLabel(name,objectName='muted')); rl.addStretch(); rl.addWidget(value); lay.addWidget(row)
-        return card
-
-    def _preview(self):
-        card=self.card(); lay=QVBoxLayout(card); lay.setContentsMargins(14,11,14,10); head=QHBoxLayout(); head.addWidget(QLabel('Vista previa de los datos   ⓘ',objectName='sectionTitle')); head.addWidget(QLabel('Se muestran los primeros 10 registros del archivo.',objectName='muted')); head.addStretch(); self.columns=QLabel('Columnas detectadas: 9',objectName='muted'); head.addWidget(self.columns); head.addWidget(QPushButton('↗   Vista completa',objectName='secondaryButton')); lay.addLayout(head)
-        self.preview=self.table(IMPORT_HEADERS,IMPORT_ROWS,277,True); self.preview.verticalHeader().setDefaultSectionSize(24); lay.addWidget(self.preview); foot=QHBoxLayout(); foot.addWidget(QLabel('ⓘ   Si los datos no se muestran correctamente, revisa el formato del archivo o descarga la plantilla.',objectName='muted')); foot.addStretch(); cancel=QPushButton('Cancelar',objectName='secondaryButton'); cancel.clicked.connect(self._reset); foot.addWidget(cancel); validate=QPushButton('Validar datos',objectName='primaryButton'); validate.clicked.connect(lambda: validate.setText('Datos validados')); foot.addWidget(validate); lay.addLayout(foot); return card
-
-    def _choose_file(self):
-        path,_=QFileDialog.getOpenFileName(self,'Seleccionar archivo de datos','','Archivos de datos (*.csv *.xlsx *.xls)')
-        if path: self._load_file(path)
-
-    def _load_file(self,path):
-        file=Path(path)
-        if not file.is_file() or file.stat().st_size>50*1024*1024: return
-        headers,rows,total=IMPORT_HEADERS,[],0
-        if file.suffix.lower()=='.csv':
-            try:
-                with file.open('r',encoding='utf-8-sig',newline='') as src:
-                    reader=csv.reader(src); headers=tuple(next(reader,IMPORT_HEADERS))
-                    for row in reader:
-                        total+=1
-                        if len(rows)<10: rows.append(tuple(row))
-            except (OSError,UnicodeError,csv.Error): return
-        elif file.suffix.lower()=='.xlsx':
-            try:
-                from openpyxl import load_workbook
-                sheet=load_workbook(file,read_only=True,data_only=True).active; iterator=sheet.iter_rows(values_only=True); headers=tuple(str(v or '') for v in next(iterator,IMPORT_HEADERS))
-                for row in iterator:
-                    total+=1
-                    if len(rows)<10: rows.append(tuple('' if v is None else str(v) for v in row))
-            except (ImportError,OSError,ValueError,StopIteration): rows=list(IMPORT_ROWS); total=1248; headers=IMPORT_HEADERS
-        else: rows=list(IMPORT_ROWS); total=1248
-        self.selected_path=file; self.file_name.setText(file.name); self.file_type.setText(f'{file.suffix[1:].upper()} ({file.suffix.lower()})'); self.file_size.setText(f'{file.stat().st_size/1024/1024:.1f} MB'); self.record_count.setText(f'{total:,}'); self.modified.setText(datetime.fromtimestamp(file.stat().st_mtime).strftime('%d/%m/%Y %H:%M')); self._fill(headers,rows)
-
-    def _fill(self,headers,rows):
-        width=max(len(headers),max((len(r) for r in rows),default=0)); self.preview.setColumnCount(width+1); self.preview.setHorizontalHeaderLabels(('#',)+tuple(headers)+tuple(f'Campo {i+1}' for i in range(len(headers),width))); self.preview.setRowCount(len(rows))
-        for r,row in enumerate(rows):
-            self.preview.setItem(r,0,QTableWidgetItem(str(r+1)))
-            for c in range(width): self.preview.setItem(r,c+1,QTableWidgetItem(str(row[c]) if c<len(row) else ''))
-        self.columns.setText(f'Columnas detectadas: {width}')
-
-    def _reset(self):
-        self.selected_path=None; self.file_name.setText('ventas_agosto_2025.xlsx'); self.file_type.setText('Excel (.xlsx)'); self.file_size.setText('2.4 MB'); self.record_count.setText('1,248'); self.modified.setText('18/08/2025 10:24 a. m.'); self._fill(IMPORT_HEADERS,IMPORT_ROWS)
+    def _select_type(self, index):
+        for card_index, card in enumerate(self.type_cards):
+            card.set_active(card_index == index)
+        for tab_index, tab in enumerate(self.tabs):
+            tab.setVisible(tab_index == index)
 
 
 PRODUCTS=(('P001','🎧  Audífonos Bluetooth','Tecnología','8','20','TechSupply','7 días','$320.00','Crítico','⋮'),('P002','🎒  Mochila escolar','Papelería','12','25','EscolarMX','5 días','$280.00','Bajo','⋮'),('P003','👕  Playera K-pop','Ropa','45','20','KPopStore','10 días','$150.00','Óptimo','⋮'),('P004','🎃  Decoración Halloween','Decoración','6','30','DecoFest','12 días','$95.00','Crítico','⋮'),('P005','📘  Cuaderno universitario','Papelería','120','40','Papelería Pro','5 días','$22.00','Óptimo','⋮'),('P006','🎄  Decoración Navidad','Decoración','18','40','DecoFest','14 días','$110.00','Bajo','⋮'),('P007','🕶  Lentes de sol','Accesorios','32','20','ModaPlus','9 días','$85.00','Óptimo','⋮'),('P008','🧴  Botella reutilizable','Accesorios','75','30','EcoLife','6 días','$65.00','Óptimo','⋮'))
@@ -409,6 +416,7 @@ QTableWidget#coreTable{background:white;color:#273754;border:1px solid #e0e6ef;b
 QFrame#typeActive{background:white;border:1px solid #654cff;border-radius:8px}QFrame#dropZone{background:#fbfbff;border:1px dashed #6045ff;border-radius:10px}QLabel#uploadTitle{color:#111827;font-size:15px;font-weight:750}QLabel#stepActive{background:#5133f5;color:white;border-radius:18px;font-weight:700}QLabel#step{background:white;color:#172541;border:1px solid #bdc8d8;border-radius:18px;font-weight:700}QLabel#stepTitleActive{color:#5133f5;font-size:11px;font-weight:700}QFrame#line{background:#bdc8d8;border:none}QFrame#detailRow{border:none;border-bottom:1px solid #e3e8ef}QLabel#detailIcon{background:#f0edff;color:#5133f5;border-radius:7px;font-weight:700}QLabel#detailValue{font-size:10px;color:#111a2d;font-weight:650}
 QLineEdit,QComboBox{background:white;color:#263752;border:1px solid #d4deea;border-radius:6px;padding:8px;font-size:10px;min-height:16px}QComboBox::drop-down{border:none;width:18px}QLabel#fieldLabel{font-size:9px;font-weight:700;color:#111a2d}QPushButton#pageButton,QPushButton#pageActive{min-width:25px;max-width:25px;min-height:25px;background:white;color:#354460;border:1px solid #d8e0ea;border-radius:5px;font-size:9px}QPushButton#pageActive{background:#5133f5;color:white;border:none}
 QFrame#insight{background:#f6f3ff;border:1px solid #ded7ff;border-radius:9px}QLabel#insightTitle{color:#5031ed;font-size:12px;font-weight:750}
+QFrame#typeCard{background:white;border:1px solid #dfe5ee;border-radius:8px}QFrame#typeCard:hover{background:#fbfaff;border-color:#c9c0ff}QFrame#typeCard[active="true"]{background:white;border:1px solid #654cff}QLabel#typeTitleActive{color:#5133f5;font-size:11px;font-weight:750}
 '''
 
 

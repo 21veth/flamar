@@ -2,3 +2,6 @@ PySide6>=6.8,<7
 argon2-cffi
 psycopg[binary]
 python-dotenv
+openpyxl>=3.1
+xlrd>=2.0
+pytest>=8.0
