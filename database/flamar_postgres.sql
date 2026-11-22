@@ -11,12 +11,80 @@ CREATE TABLE usuarios (
     activo BOOLEAN NOT NULL DEFAULT TRUE,
     ultimo_acceso TIMESTAMPTZ,
     fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    correo VARCHAR(254),
+    telefono VARCHAR(16),
+    correo_verificado_en TIMESTAMPTZ,
+    telefono_verificado_en TIMESTAMPTZ,
 
     CONSTRAINT pk_usuarios PRIMARY KEY (id_usuario),
     CONSTRAINT uq_usuarios_usuario UNIQUE (usuario),
     CONSTRAINT ck_usuarios_rol
-        CHECK (rol IN ('administrador', 'gerente', 'trabajador'))
+        CHECK (rol IN ('administrador', 'gerente', 'trabajador')),
+    CONSTRAINT ck_usuarios_correo CHECK (
+        correo IS NULL OR (
+            correo = lower(btrim(correo))
+            AND correo ~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$'
+        )
+    ),
+    CONSTRAINT ck_usuarios_telefono
+        CHECK (telefono IS NULL OR telefono ~ '^\+[1-9][0-9]{7,14}$'),
+    CONSTRAINT ck_usuarios_contacto_verificado CHECK (
+        (correo_verificado_en IS NULL OR correo IS NOT NULL)
+        AND (telefono_verificado_en IS NULL OR telefono IS NOT NULL)
+    )
 );
+
+CREATE UNIQUE INDEX uq_usuarios_correo ON usuarios (lower(correo)) WHERE correo IS NOT NULL;
+CREATE UNIQUE INDEX uq_usuarios_telefono ON usuarios (telefono) WHERE telefono IS NOT NULL;
+
+-- INICIO RECUPERACION DE CONTRASENA
+-- Una solicitud guarda pruebas y aprobación, nunca códigos ni contraseñas en texto plano.
+CREATE TABLE recuperaciones_password (
+    id_solicitud UUID PRIMARY KEY,
+    id_usuario BIGINT NOT NULL REFERENCES usuarios (id_usuario),
+    -- Solo se crean recuperaciones por correo; el otro valor permite conservar históricos.
+    canal VARCHAR(10) NOT NULL CHECK (canal IN ('correo', 'whatsapp')),
+    -- Vacío mientras una solicitud pendiente espera que el administrador registre el correo.
+    destino VARCHAR(254) NOT NULL,
+    token_hash CHAR(64) NOT NULL UNIQUE,
+    codigo_hash CHAR(64),
+    password_firma CHAR(64) NOT NULL,
+    estado VARCHAR(20) NOT NULL DEFAULT 'pendiente' CHECK (estado IN (
+        'enviando', 'codigo_enviado', 'pendiente', 'aprobada', 'rechazada',
+        'completada', 'expirada', 'bloqueada', 'envio_fallido', 'cancelada'
+    )),
+    intentos SMALLINT NOT NULL DEFAULT 0 CHECK (intentos BETWEEN 0 AND 5),
+    solicitado_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    codigo_caduca_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERVAL '3 hours',
+    caduca_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERVAL '3 hours',
+    verificado_en TIMESTAMPTZ,
+    id_administrador BIGINT REFERENCES usuarios (id_usuario),
+    resuelto_en TIMESTAMPTZ,
+    aprobacion_caduca_en TIMESTAMPTZ,
+    cambiado_en TIMESTAMPTZ,
+    envio_error VARCHAR(40),
+    envio_intentado_en TIMESTAMPTZ,
+    envio_intentos SMALLINT NOT NULL DEFAULT 0,
+    CONSTRAINT ck_recuperacion_envio_intentos CHECK (envio_intentos BETWEEN 0 AND 3),
+    CONSTRAINT ck_recuperacion_otro_administrador CHECK (
+        id_administrador IS NULL OR id_administrador <> id_usuario
+    ),
+    CONSTRAINT ck_recuperacion_aprobacion CHECK (
+        estado NOT IN ('aprobada', 'completada') OR (
+            verificado_en IS NOT NULL AND id_administrador IS NOT NULL
+            AND resuelto_en IS NOT NULL AND aprobacion_caduca_en IS NOT NULL
+        )
+    ),
+    CONSTRAINT ck_recuperacion_autorizacion_codigo CHECK (
+        estado NOT IN ('enviando', 'codigo_enviado') OR (
+            id_administrador IS NOT NULL AND resuelto_en IS NOT NULL
+            AND aprobacion_caduca_en IS NOT NULL
+        )
+    )
+);
+CREATE INDEX ix_recuperacion_usuario_fecha ON recuperaciones_password (id_usuario, solicitado_en DESC);
+CREATE INDEX ix_recuperacion_estado_fecha ON recuperaciones_password (estado, solicitado_en DESC);
+-- FIN RECUPERACION DE CONTRASENA
 
 -- =====================================================
 -- 2. CATEGORIAS

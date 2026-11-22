@@ -22,6 +22,9 @@ from PySide6.QtWidgets import (
 )
 
 
+from views.tabla_paginada import TablaPaginada
+
+
 PURPLE = '#553cff'
 INK = '#0b1739'
 MUTED = '#64748b'
@@ -148,7 +151,7 @@ class ConsumersView(_Page):
         layout.addLayout(header)
 
         columns = ('ID Consumidor', 'Rango de edad', 'N.º Compras', 'Frecuencia', 'Gasto promedio', 'Categoría favorita', 'Lealtad', 'Segmento')
-        self.table = QTableWidget(0, len(columns))
+        self.table = TablaPaginada(0, len(columns))
         self.table.setHorizontalHeaderLabels(columns)
         self.table.setAlternatingRowColors(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -163,17 +166,6 @@ class ConsumersView(_Page):
         self.table.itemSelectionChanged.connect(self._selection_changed)
         layout.addWidget(self.table)
 
-        pagination = QHBoxLayout()
-        pagination.addWidget(QLabel('Mostrar  10  registros por página', objectName='hint'))
-        pagination.addStretch()
-        for text in ('‹‹', '‹', '1', '2', '3', '4', '5', '›', '››'):
-            button = QPushButton(text)
-            button.setObjectName('pageActive' if text == '1' else 'pageButton')
-            button.setFixedSize(32, 32)
-            pagination.addWidget(button)
-        pagination.addStretch()
-        pagination.addWidget(QLabel('Página 1 de 25', objectName='hint'))
-        layout.addLayout(pagination)
         return card
 
     def _build_detail_card(self):
@@ -475,7 +467,7 @@ class SegmentationView(_Page):
             ('Afinidad estacional', 'Baja', 'Media', 'Media', 'Alta'),
             ('Potencial de abastecimiento', 'Alto', 'Medio', 'Medio', 'Alto'),
         )
-        table = QTableWidget(len(rows), 5)
+        table = TablaPaginada(len(rows), 5)
         table.setHorizontalHeaderLabels(('Característica', '●  Recurrentes', '●  Sensibles a promociones', '●  Exploradores', '●  Estacionales'))
         table.verticalHeader().hide()
         table.setEditTriggers(QAbstractItemView.NoEditTriggers)

@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 
 from controllers.login_controller import LoginController
 from views.home_view import HomeView
+from views.recuperacion_dialog import RecuperacionDialog
 from views.ui_components import BrandWidget, LogoMark
 
 
@@ -75,6 +76,7 @@ class LoginView(QWidget):
         self.setMinimumSize(720, 560)
         self.resize(1280, 760)
         self.home_view = None
+        self.recovery_dialog = None
         self._controller = LoginController(auth_service)
         self._controller.autenticado.connect(self._on_autenticado)
         self._controller.fallo.connect(self._on_fallo)
@@ -147,6 +149,7 @@ class LoginView(QWidget):
         forgot = QPushButton('¿Olvidaste tu contraseña?', objectName='linkButton')
         forgot.setCursor(Qt.PointingHandCursor)
         forgot.clicked.connect(self._show_recovery)
+        self.recovery_button = forgot
         options.addWidget(forgot)
         form.addLayout(options)
         form.addSpacing(12)
@@ -183,6 +186,7 @@ class LoginView(QWidget):
         self.login_button.setEnabled(False)
         self.user_input.setEnabled(False)
         self.password_input.setEnabled(False)
+        self.recovery_button.setEnabled(False)
 
     def _on_autenticado(self, sesion):
         if self._pending_close:
@@ -206,6 +210,7 @@ class LoginView(QWidget):
         self.login_button.setEnabled(True)
         self.user_input.setEnabled(True)
         self.password_input.setEnabled(True)
+        self.recovery_button.setEnabled(True)
         self.password_input.clear()
         self.password_input.setFocus()
         if self._pending_close:
@@ -222,7 +227,17 @@ class LoginView(QWidget):
         self.activateWindow()
 
     def _show_recovery(self):
-        QMessageBox.information(self, 'Recuperar acceso', 'Contacta al administrador de tu organización para restablecer tu contraseña.')
+        if self._controller.en_progreso():
+            return
+        if self.recovery_dialog is None:
+            self.recovery_dialog = RecuperacionDialog(self.user_input.text().strip(), parent=self)
+            self.recovery_dialog.finished.connect(self._close_recovery)
+        self.recovery_dialog.open()
+
+    def _close_recovery(self, _resultado):
+        dialogo, self.recovery_dialog = self.recovery_dialog, None
+        if dialogo:
+            dialogo.deleteLater()
 
     def closeEvent(self, event):
         if self._controller.en_progreso():

@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
-    QProgressBar,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -19,6 +18,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+
+from views.tabla_paginada import TablaPaginada
 
 
 INK = "#0b1647"
@@ -72,20 +74,6 @@ def _button(text):
     button.setCursor(Qt.PointingHandCursor)
     button.setMinimumHeight(21)
     return button
-
-
-def _interest(value):
-    progress = QProgressBar()
-    progress.setRange(0, 100)
-    progress.setValue(value)
-    progress.setFormat(f"{value}%")
-    progress.setTextVisible(True)
-    progress.setStyleSheet(
-        "QProgressBar { color:#243568; background:#eceaf8; border:0; border-radius:5px; "
-        "text-align:right; padding-right:2px; font-size:9px; }"
-        "QProgressBar::chunk { background:#6134f4; border-radius:5px; margin-right:30px; }"
-    )
-    return progress
 
 
 def _panel(title, subtitle="", icon=None, link=None):
@@ -325,7 +313,7 @@ class _BaseIntelligenceView(QWidget):
 
     @staticmethod
     def _table(headers, rows, widths=None, row_height=42):
-        table = QTableWidget(len(rows), len(headers))
+        table = TablaPaginada(len(rows), len(headers))
         table.setObjectName("dataTable")
         table.setHorizontalHeaderLabels(headers)
         table.verticalHeader().hide()
@@ -520,99 +508,6 @@ class CalendarView(_BaseIntelligenceView):
         right.addWidget(quick)
         body.addLayout(left, 53)
         body.addLayout(right, 47)
-        layout.addLayout(body)
-
-
-class TrendsView(_BaseIntelligenceView):
-    TITLE = "Radar de tendencias"
-    SUBTITLE = "Detecta nuevas oportunidades, monitorea la popularidad de productos y analiza señales del mercado\npara anticipar la demanda."
-    PAGE_ICON = "🎯"
-
-    def _build_content(self, layout):
-        layout.addLayout(self._metrics((
-            ("📈", PURPLE, "#eee9ff", "24", "Tendencias detectadas", "En el periodo seleccionado", "41%", GREEN),
-            ("🛍️", GREEN, "#e5f8ef", "18", "Productos en tendencia", "Con alta demanda potencial", "32%", GREEN),
-            ("📊", PINK, "#ffe8f1", "9", "Categorías en crecimiento", "Con señales positivas", "28%", GREEN),
-            ("🔔", PINK, "#ffe8f1", "6", "Alertas de cambio", "Variaciones significativas", "50%", PINK),
-        )))
-        body = QHBoxLayout()
-        body.setSpacing(10)
-        left = QVBoxLayout()
-        left.setSpacing(10)
-        opportunities, op_layout = _panel("Oportunidades de tendencia  ⓘ", "Productos y categorías con mayor potencial según señales del mercado.")
-        combo = QComboBox()
-        combo.addItem("Todas las categorías")
-        combo.setFixedWidth(155)
-        opportunities.layout().itemAt(0).layout().addWidget(combo)
-        opportunity_rows = (
-            ("👚  Guerreras K-pop\n     Álbumes, figuras, ropa y accesorios.", _interest(92), _badge("↑  120%", GREEN, "#e2f8ed"), _badge("Ropa", PURPLE, "#eee9ff"), _badge("Alta demanda", GREEN, "#e2f8ed"), _button("Aumentar inventario  ›")),
-            ("🎃  Decoración de Halloween\n     Decoración, disfraces y artículos temáticos.", _interest(78), _badge("↑  85%", GREEN, "#e2f8ed"), _badge("Decoración", PINK, "#ffe9ef"), _badge("En crecimiento", BLUE, "#e7f1ff"), _button("Preparar campaña  ›")),
-            ("🎒  Útiles escolares virales\n     Mochilas, lapiceras, cuadernos de personajes.", _interest(70), _badge("↑  60%", GREEN, "#e2f8ed"), _badge("Papelería", ORANGE, "#fff2df"), _badge("En crecimiento", BLUE, "#e7f1ff"), _button("Comprar anticipado  ›")),
-            ("🧸  Colección Stumble Guys\n     Figuras coleccionables y accesorios.", _interest(65), _badge("↑  45%", GREEN, "#e2f8ed"), _badge("Juguetes", BLUE, "#e7f1ff"), _badge("Tendencia estable", TEXT, "#edf1f8"), _button("Monitorear precios  ›")),
-            ("🎧  Accesorios tecnológicos\n     Audífonos, smartwatches y accesorios.", _interest(58), _badge("↑  38%", GREEN, "#e2f8ed"), _badge("Tecnología", PURPLE, "#eee9ff"), _badge("Oportunidad", GREEN, "#e2f8ed"), _button("Revisar proveedores  ›")),
-            ("🎨  Juguetes sorpresa\n     Figuras sorpresa, mini juguetes y coleccionables.", _interest(52), _badge("↑  35%", GREEN, "#e2f8ed"), _badge("Juguetes", BLUE, "#e7f1ff"), _badge("En crecimiento", BLUE, "#e7f1ff"), _button("Crear combo  ›")),
-        )
-        op_layout.addWidget(self._table(("Tendencia / Producto", "Nivel de interés", "Crecimiento", "Categoría", "Estado", "Acción recomendada"), opportunity_rows, (210, 100, 100, 95, 115, 135), 69))
-        left.addWidget(opportunities)
-        new_products, new_layout = _panel("Oportunidades de nuevos productos  ⓘ", "Ideas de productos con potencial según tendencias emergentes.", ("✨", PURPLE, "#eee9ff"), "Ver todas")
-        cards = QHBoxLayout()
-        cards.setSpacing(7)
-        for data in (
-            ("👕", "Sudaderas K-pop", "Alta demanda potencial", "Evaluar producto  ›"),
-            ("🎃", "Luces decorativas Halloween", "Tendencia en alza", "Agregar al catálogo  ›"),
-            ("🧴", "Tomatodos virales", "Interés creciente", "Analizar demanda  ›"),
-            ("🧸", "Figuras sorpresa", "Oportunidad de mercado", "Revisar proveedores  ›"),
-        ):
-            card = self._product_card(data[0], data[1], data[2], data[3], PURPLE, "white")
-            cards.addWidget(card, 1)
-        new_layout.addLayout(cards)
-        left.addWidget(new_products)
-
-        right = QVBoxLayout()
-        right.setSpacing(10)
-        sources, sources_layout = _panel("Fuentes de señal  ⓘ", "Análisis de tendencias a partir de múltiples fuentes de datos.")
-        source_row = QHBoxLayout()
-        source_row.setSpacing(8)
-        for icon, title, value, color, bg in (
-            ("♪", "Redes sociales", "42%", PURPLE, "#f0eaff"),
-            ("G", "Búsquedas", "28%", BLUE, "#e9f3ff"),
-            ("🛒", "Ventas internas", "20%", GREEN, "#e4f8ef"),
-            ("📰", "Medios y noticias", "10%", PURPLE, "#eee9ff"),
-        ):
-            box = QFrame()
-            box.setObjectName("sourceCard")
-            box_layout = QVBoxLayout(box)
-            box_layout.setContentsMargins(7, 7, 7, 7)
-            box_layout.setSpacing(1)
-            box_layout.addWidget(_icon(icon, color, bg, 39, 20), alignment=Qt.AlignCenter)
-            box_layout.addWidget(_label(title, "productTitle", alignment=Qt.AlignCenter))
-            value_label = _label(value, "sourceValue", alignment=Qt.AlignCenter)
-            value_label.setStyleSheet(f"color:{color}; font-size:14px; font-weight:800; border:0;")
-            box_layout.addWidget(value_label)
-            box_layout.addWidget(_label("del análisis", "productSubtitle", alignment=Qt.AlignCenter))
-            source_row.addWidget(box, 1)
-        sources_layout.addLayout(source_row)
-        right.addWidget(sources)
-        popularity, popularity_layout = _panel("Seguimiento de popularidad  ⓘ", "Interés de búsqueda y menciones en redes sociales.")
-        popularity_layout.addWidget(_MultiLineChart(
-            (((35, 58, 49, 62, 60, 80, 62), PURPLE), ((32, 42, 34, 43, 88, 103, 76), PINK), ((12, 18, 15, 24, 42, 36, 30), BLUE)),
-            ("Mar", "Abr", "May", "Jun", "Jul", "", "Ago"), 110,
-            ("20,000", "40,000", "60,000", "80,000", "100,000"),
-            (("Guerreras K-pop", PURPLE), ("Halloween", PINK), ("Útiles escolares", BLUE)),
-        ))
-        right.addWidget(popularity)
-        validation, validation_layout = _panel("Validación con inventario y categorías  ⓘ", "Verifica disponibilidad y sugiere acciones por categoría.", ("📦", PURPLE, "#eee9ff"), "Ver todas")
-        validation_rows = (
-            ("👚  Ropa", "6", "320", _badge("Stock bajo", PINK, "#ffe6ed"), _button("Comprar  ›")),
-            ("🎃  Decoración", "4", "650", _badge("Stock suficiente", GREEN, "#e2f8ed"), _button("Monitorear  ›")),
-            ("📒  Papelería", "5", "280", _badge("Stock bajo", PINK, "#ffe6ed"), _button("Comprar  ›")),
-            ("🧸  Juguetes", "6", "420", _badge("Stock suficiente", GREEN, "#e2f8ed"), _button("Monitorear  ›")),
-            ("🎧  Tecnología", "3", "150", _badge("Stock bajo", PINK, "#ffe6ed"), _button("Comprar  ›")),
-        )
-        validation_layout.addWidget(self._table(("Categoría", "Productos en tendencia", "Stock actual", "Estado", "Acción sugerida"), validation_rows, row_height=25))
-        right.addWidget(validation)
-        body.addLayout(left, 63)
-        body.addLayout(right, 37)
         layout.addLayout(body)
 
 
