@@ -20,6 +20,9 @@ from PySide6.QtWidgets import (
 )
 
 
+from views.tabla_paginada import TablaPaginada
+
+
 INK = "#0b1647"
 TEXT = "#243568"
 MUTED = "#6473a1"
@@ -310,7 +313,7 @@ class _BaseIntelligenceView(QWidget):
 
     @staticmethod
     def _table(headers, rows, widths=None, row_height=42):
-        table = QTableWidget(len(rows), len(headers))
+        table = TablaPaginada(len(rows), len(headers))
         table.setObjectName("dataTable")
         table.setHorizontalHeaderLabels(headers)
         table.verticalHeader().hide()

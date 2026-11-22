@@ -22,6 +22,9 @@ from PySide6.QtWidgets import (
 )
 
 
+from views.tabla_paginada import TablaPaginada
+
+
 PURPLE = '#553cff'
 
 
@@ -81,7 +84,7 @@ class _DataPage(QWidget):
 
     @staticmethod
     def _table(headers, rows, minimum_height):
-        table = QTableWidget(len(rows), len(headers), objectName='data_table')
+        table = TablaPaginada(len(rows), len(headers), objectName='data_table')
         table.setHorizontalHeaderLabels(headers)
         table.verticalHeader().hide()
         table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)

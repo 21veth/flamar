@@ -28,6 +28,9 @@ from PySide6.QtWidgets import (
 )
 
 
+from views.tabla_paginada import TablaPaginada
+
+
 INK = "#081433"
 MUTED = "#5f7097"
 PURPLE = "#5525f5"
@@ -160,188 +163,6 @@ class _Page(QWidget):
         """
 
 
-class RecommendationsView(_Page):
-    RECOMMENDATIONS = (
-        ("👕🎤", "Promoción", "Combo K-pop", "Crear paquete promocional de playera + póster + sticker.\nAlta afinidad de compra entre estos productos.", "+18%", "Alta", "92%", "Jóvenes 13-25 años", "Fans de K-pop"),
-        ("🎃", "Promoción", "Descuento Halloween", "Aplicar 20% de descuento en decoración seleccionada\npara incrementar la rotación en octubre.", "+22%", "Media", "85%", "Familias", "Compras por temporada"),
-        ("🎒", "Promoción", "Paquete escolar", "Promocionar mochila + cuaderno + lápices al inicio\nde temporada escolar.", "+15%", "Media", "78%", "Padres de familia", "Regreso a clases"),
-        ("📘", "Abastecimiento", "Reabastecer cuadernos universitarios", "El stock está por debajo del nivel mínimo y la demanda\nmuestra tendencia al alza en las próximas semanas.", "+12%", "Alta", "94%", "Estudiantes", "Universidad y preparatoria"),
-        ("🎄", "Abastecimiento", "Reforzar stock de decoración navideña", "La demanda de productos navideños comienza a aumentar\nen septiembre. Se recomienda anticipar el inventario.", "+28%", "Media", "88%", "Familias", "Compras de temporada"),
-        ("👕", "Abastecimiento", "Monitorear playeras K-pop", "Aumento en la tasa de rotación. Se recomienda monitorear\nniveles de stock para evitar quiebres.", "+10%", "Baja", "76%", "Jóvenes 13-25 años", "Fans de K-pop"),
-    )
-
-    def __init__(self, sesion, parent=None):
-        super().__init__(
-            "Recomendaciones inteligentes",
-            "Sugerencias personalizadas para impulsar tus ventas y optimizar tu inventario.",
-            sesion,
-            1180,
-            parent,
-        )
-        self._active_type = "Todos los tipos"
-        self.content.addSpacing(8)
-        self.content.addWidget(self._tabs())
-        metrics = QHBoxLayout()
-        metrics.setSpacing(11)
-        for args in (
-            ("⚑", "3", "Promociones sugeridas", "para aumentar ventas", PURPLE, "#eeeaff"),
-            ("📦", "3", "Reabastecimientos sugeridos", "para evitar quiebres", GREEN, "#e8faf3"),
-            ("|||", "+25%", "Impacto estimado en ventas", "si aplicas todas las recomendaciones", BLUE, "#e8f2ff"),
-            ("O", "92%", "Confianza promedio", "en las recomendaciones", ORANGE, "#fff5df"),
-        ):
-            metrics.addWidget(self._metric(*args), 1)
-        self.content.addLayout(metrics)
-        self.content.addSpacing(4)
-        self.content.addWidget(self._list_panel(), 1)
-
-    def _tabs(self):
-        frame = QFrame()
-        frame.setMinimumHeight(54)
-        layout = QHBoxLayout(frame)
-        layout.setContentsMargins(0, 6, 0, 0)
-        layout.setSpacing(0)
-        self.tab_group = QButtonGroup(self)
-        for index, (text, icon) in enumerate((("Promociones", "⚑"), ("Abastecimiento", "◇"))):
-            button = QPushButton(f"{icon}    {text}", objectName="tab")
-            button.setCheckable(True)
-            button.setFixedSize(220, 46)
-            button.clicked.connect(lambda checked=False, kind=text: self._set_type(kind))
-            self.tab_group.addButton(button)
-            layout.addWidget(button)
-            if index == 0:
-                button.setChecked(True)
-        layout.addStretch()
-        return frame
-
-    @staticmethod
-    def _metric(symbol, value, title, copy, color, background):
-        card = _panel()
-        card.setMinimumHeight(108)
-        row = QHBoxLayout(card)
-        row.setContentsMargins(12, 12, 12, 12)
-        row.addWidget(_icon(symbol, color, background, 62))
-        text = QVBoxLayout()
-        text.setSpacing(2)
-        text.addWidget(_label(value, "metricValue"))
-        text.addWidget(_label(title, "metricTitle"))
-        text.addWidget(_label(copy, "small"))
-        row.addLayout(text, 1)
-        return card
-
-    def _list_panel(self):
-        panel = _panel(name="panel")
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(8, 11, 8, 8)
-        layout.setSpacing(8)
-        tools = QHBoxLayout()
-        tools.addWidget(_label("LISTA DE RECOMENDACIONES", "sectionTitle"))
-        tools.addStretch()
-        self.type_filter = QComboBox()
-        self.type_filter.addItems(("Todos los tipos", "Promoción", "Abastecimiento"))
-        self.priority_filter = QComboBox()
-        self.priority_filter.addItems(("Todas las prioridades", "Alta", "Media", "Baja"))
-        segment = QComboBox()
-        segment.addItems(("Todos los segmentos", "Familias", "Estudiantes", "Jóvenes 13-25 años"))
-        self.search = QLineEdit(placeholderText="⌕   Buscar recomendación...")
-        for widget in (self.type_filter, self.priority_filter, segment):
-            widget.setFixedWidth(150)
-            tools.addWidget(widget)
-        self.search.setFixedWidth(235)
-        tools.addWidget(self.search)
-        layout.addLayout(tools)
-        self.rows_layout = QVBoxLayout()
-        self.rows_layout.setSpacing(8)
-        layout.addLayout(self.rows_layout)
-        self.type_filter.currentTextChanged.connect(self._refresh)
-        self.priority_filter.currentTextChanged.connect(self._refresh)
-        segment.currentTextChanged.connect(self._refresh)
-        self.segment_filter = segment
-        self.search.textChanged.connect(self._refresh)
-        self._refresh()
-        return panel
-
-    def _set_type(self, kind):
-        self.type_filter.setCurrentText(kind)
-
-    def _refresh(self):
-        while self.rows_layout.count():
-            item = self.rows_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-        needle = self.search.text().lower().strip()
-        for data in self.RECOMMENDATIONS:
-            if self.type_filter.currentText() != "Todos los tipos" and data[1] != self.type_filter.currentText():
-                continue
-            if self.priority_filter.currentText() != "Todas las prioridades" and data[5] != self.priority_filter.currentText():
-                continue
-            if self.segment_filter.currentText() != "Todos los segmentos" and data[7] != self.segment_filter.currentText():
-                continue
-            if needle and needle not in (data[2] + " " + data[3]).lower():
-                continue
-            self.rows_layout.addWidget(self._recommendation(data))
-
-    def _recommendation(self, data):
-        emoji, kind, title, body, impact, priority, confidence, segment, segment_copy = data
-        card = _panel(name="recommendation")
-        card.setMinimumHeight(88)
-        row = QHBoxLayout(card)
-        row.setContentsMargins(10, 8, 10, 8)
-        row.setSpacing(12)
-        row.addWidget(_icon(emoji, "#333", "#f4f5f8", 58))
-        kind_color = GREEN if kind == "Abastecimiento" else PURPLE
-        row.addWidget(_chip(kind, kind_color, "#e7faf1" if kind == "Abastecimiento" else "#f0edff", 92), alignment=Qt.AlignTop)
-        copy = QVBoxLayout()
-        copy.setSpacing(3)
-        copy.addWidget(_label(title, "rowTitle"))
-        copy.addWidget(_label(body, "muted"))
-        row.addLayout(copy, 2)
-        row.addWidget(self._column("Impacto esperado", f"↑  {impact}", "en ventas de la categoría", "impact"), 1)
-        colors = {"Alta": ("#cf2333", "#ffe8eb"), "Media": ("#b66a00", "#fff4dc"), "Baja": ("#087b53", "#e5f9f0")}
-        priority_box = QVBoxLayout()
-        priority_box.addWidget(_label("Prioridad", "small"))
-        priority_box.addWidget(_chip(priority, *colors[priority], 74))
-        row.addLayout(priority_box)
-        row.addWidget(self._column("Confianza", f"◯  {confidence}", "", "confidence"))
-        row.addWidget(self._column("Segmento afectado", segment, segment_copy, "segment"), 1)
-        button = QPushButton("Ver detalles    →", objectName="outline")
-        button.clicked.connect(lambda checked=False, item=data: self._detail(item))
-        row.addWidget(button)
-        return card
-
-    @staticmethod
-    def _column(caption, value, sub, name):
-        box = QWidget()
-        layout = QVBoxLayout(box)
-        layout.setContentsMargins(5, 0, 5, 0)
-        layout.setSpacing(3)
-        layout.addWidget(_label(caption, "small"))
-        layout.addWidget(_label(value, name))
-        if sub:
-            layout.addWidget(_label(sub, "small"))
-        return box
-
-    def _detail(self, data):
-        QMessageBox.information(
-            self,
-            data[2],
-            f"{data[3].replace(chr(10), ' ')}\n\nImpacto esperado: {data[4]}\nPrioridad: {data[5]}\nConfianza: {data[6]}\nSegmento: {data[7]}",
-        )
-
-    @staticmethod
-    def extra_style():
-        return _Page.extra_style() + """
-            QPushButton#tab { color:#465677; background:white; border:1px solid #dde5f1; font-size:12px; font-weight:700; }
-            QPushButton#tab:first { border-radius:8px; }
-            QPushButton#tab:checked { color:white; background:#5525f5; border-color:#5525f5; }
-            QLabel#metricValue { color:#081433; font-size:20px; font-weight:800; }
-            QLabel#metricTitle { color:#26365b; font-size:11px; }
-            QFrame#recommendation { background:white; border:1px solid #e0e7f0; border-radius:9px; }
-            QLabel#rowTitle, QLabel#segment { color:#081433; font-size:11px; font-weight:750; }
-            QLabel#impact { color:#07865b; font-size:12px; font-weight:800; }
-            QLabel#confidence { color:#081433; font-size:11px; font-weight:800; }
-        """
-
-
 class SupplyView(_Page):
     PRODUCTS = (
         ("🎧", "Audífonos Bluetooth", "Tecnología", 40, 8, 15, 0, 47, "12/08/2025", "Crítica"),
@@ -423,7 +244,7 @@ class SupplyView(_Page):
         layout.addLayout(tools)
 
         headers = ("", "Producto", "Demanda estimada\n(próx. 30 días)", "Stock actual", "Stock seguridad", "En tránsito", "Cantidad\nsugerida", "Fecha sugerida\nde pedido", "Prioridad")
-        self.table = QTableWidget(0, len(headers))
+        self.table = TablaPaginada(0, len(headers))
         self.table.setHorizontalHeaderLabels(headers)
         self.table.verticalHeader().hide()
         self.table.setShowGrid(False)
@@ -441,22 +262,6 @@ class SupplyView(_Page):
         self.supply_priority.currentTextChanged.connect(self._fill_table)
         self._fill_table()
         layout.addWidget(self.table)
-        footer = QHBoxLayout()
-        self.count_label = _label("Mostrando 10 de 42 productos", "muted")
-        footer.addWidget(self.count_label)
-        footer.addStretch()
-        for text in ("‹", "1", "2", "3", "4", "5", "›"):
-            button = QPushButton(text, objectName="pageButton")
-            button.setFixedSize(34, 32)
-            if text == "1":
-                button.setProperty("active", True)
-            footer.addWidget(button)
-        footer.addStretch()
-        footer.addWidget(_label("Productos por página:", "small"))
-        per_page = QComboBox()
-        per_page.addItems(("10", "20", "50"))
-        footer.addWidget(per_page)
-        layout.addLayout(footer)
         return panel
 
     def _fill_table(self):
@@ -486,8 +291,7 @@ class SupplyView(_Page):
             priority_item.setForeground(QColor({"Crítica": RED, "Alta": "#dd6814", "Media": "#bd7600", "Baja": GREEN}[product[9]]))
             self.table.setItem(row, 8, priority_item)
             self.table.setRowHeight(row, 46)
-        if hasattr(self, "count_label"):
-            self.count_label.setText(f"Mostrando {len(items)} de 42 productos")
+        self.table.actualizar_paginacion()
 
     def _alerts(self):
         wrapper = QWidget()
@@ -804,7 +608,7 @@ class ReportsView(_Page):
         heading.addStretch()
         heading.addWidget(_label("Ver todos", "link"))
         layout.addLayout(heading)
-        table = QTableWidget(len(data), len(headers))
+        table = TablaPaginada(len(data), len(headers))
         table.setHorizontalHeaderLabels(headers)
         table.verticalHeader().hide()
         table.setShowGrid(False)

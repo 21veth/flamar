@@ -15,3 +15,7 @@ class SesionUsuario:
     @property
     def rol_mostrar(self):
         return (self.rol or '').strip().capitalize()
+
+    @property
+    def es_administrador(self):
+        return self.rol == 'administrador'

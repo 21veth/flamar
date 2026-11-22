@@ -22,6 +22,9 @@ from PySide6.QtWidgets import (
 )
 
 
+from views.tabla_paginada import TablaPaginada
+
+
 INK = '#081433'
 MUTED = '#60708f'
 PURPLE = '#5425f5'
@@ -575,7 +578,7 @@ class DemandView(_Page):
 
 
 def _table(rows, headers, minimum_height):
-    table = QTableWidget(len(rows), len(headers))
+    table = TablaPaginada(len(rows), len(headers))
     table.setHorizontalHeaderLabels(headers)
     table.verticalHeader().hide()
     table.setEditTriggers(QAbstractItemView.NoEditTriggers)

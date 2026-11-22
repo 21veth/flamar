@@ -7,6 +7,50 @@ from config.database import obtener_conexion
 class TendenciasRepository:
     """SQL del radar; conexiones y transacciones como UsuarioRepository."""
 
+    def guardar_lote(self, lote, id_usuario):
+        """Lote y puntos en una transacción; un error no deja importaciones parciales."""
+        with obtener_conexion() as conexion:
+            with conexion.cursor() as cursor:
+                cursor.execute("SET LOCAL statement_timeout = '10s'")
+                cursor.execute('''INSERT INTO public.radar_lotes
+                    (huella, origen, archivo, sha256, metadata, creado_por)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (huella) DO NOTHING RETURNING id_lote''',
+                    (lote['huella'], lote['formato'], lote.get('archivo'), lote.get('sha256'),
+                     Jsonb(lote.get('metadata', {})), id_usuario))
+                fila = cursor.fetchone()
+                if fila is None:
+                    return False
+                for item in lote['items']:
+                    cursor.execute('''INSERT INTO public.radar_senales
+                        (id_lote, clave_serie, termino, pais, observado_en, valor, datos)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)''',
+                        (fila[0], item['clave_serie'], item['termino'], item.get('pais'),
+                         item['observado_en'], item.get('valor'), Jsonb(item)))
+                return True
+
+    def cargar_senales(self):
+        with obtener_conexion() as conexion:
+            with conexion.cursor() as cursor:
+                cursor.execute("SET LOCAL statement_timeout = '5s'")
+                cursor.execute('''SELECT datos FROM (
+                    SELECT DISTINCT ON (clave_serie) datos, observado_en, id_senal
+                    FROM public.radar_senales
+                    ORDER BY clave_serie, observado_en DESC, id_senal DESC
+                    ) ultimas ORDER BY observado_en DESC, id_senal DESC''')
+                return [fila[0] for fila in cursor.fetchall()]
+
+    def cargar_historia(self, clave_serie):
+        with obtener_conexion() as conexion:
+            with conexion.cursor() as cursor:
+                cursor.execute("SET LOCAL statement_timeout = '5s'")
+                cursor.execute('''SELECT datos FROM (
+                    SELECT DISTINCT ON (s.observado_en) s.datos, s.observado_en, s.id_senal
+                    FROM public.radar_senales s WHERE s.clave_serie = %s
+                    ORDER BY s.observado_en, s.id_senal DESC
+                    ) puntos ORDER BY observado_en''', (clave_serie,))
+                return [fila[0] for fila in cursor.fetchall()]
+
     def cargar_busqueda(self):
         with obtener_conexion() as conexion:
             with conexion.cursor() as cursor:

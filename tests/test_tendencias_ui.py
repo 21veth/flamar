@@ -10,6 +10,8 @@ from PySide6.QtWidgets import QApplication, QDialog, QPushButton
 from controllers.tendencias_controller import TendenciasController
 from models.sesion_usuario import SesionUsuario
 from views.tendencias_view import TrendsView
+from views.radar_historia_dialog import HistoriaRadarDialog, resumen_crecimiento
+from views.radar_importacion_dialog import ImportacionRadarDialog
 
 
 class ControllerPrueba(QObject):
@@ -86,9 +88,47 @@ class RadarUiTests(unittest.TestCase):
         self.vista.fuente.setCurrentIndex(self.vista.fuente.findData('tiktok'))
         self.assertIn('conexión de datos', self.vista.vacio_texto.text())
 
-    def test_no_se_muestran_controles_del_flujo_manual(self):
+    def test_importacion_real_disponible(self):
         botones = [b.text() for b in self.vista.findChildren(QPushButton)]
-        self.assertFalse(any('CSV' in b or 'Registrar' in b or 'Seguir producto' in b for b in botones))
+        self.assertIn('Importar CSV real', botones)
+        dialogo = ImportacionRadarDialog(self.vista)
+        self.assertEqual(dialogo.opciones()['formato'], 'tiktok_manual')
+        self.assertEqual(dialogo.opciones()['pais'], 'PE')
+        dialogo.deleteLater()
+
+    def test_grafico_solo_puntos_reales_y_huecos(self):
+        base = dict(termino='prueba', fuente='google', pais='PE', proveedor='Google Trends CSV',
+                    origen='google_timeline', metrica='interes_relativo', periodo='archivo', contexto='escala',
+                    url='https://trends.google.com/')
+        puntos = [dict(base, observado_en=f'2025-01-0{i}T00:00:00+00:00', valor=v)
+                  for i, v in enumerate((10, 20, None, 40), 1)]
+        dialogo = HistoriaRadarDialog(puntos, self.vista)
+        dialogo.show()
+        self.app.processEvents()
+        self.assertFalse(dialogo.grab().isNull())
+        self.assertIn('no calculable', resumen_crecimiento(puntos))
+        dialogo.close()
+        dialogo.deleteLater()
+
+    def test_base_cero_y_posicion_no_generan_porcentaje_falso(self):
+        puntos = [dict(observado_en=f'2025-01-0{i}T00:00:00+00:00', valor=v, metrica='reproducciones')
+                  for i, v in enumerate((0, 20), 1)]
+        self.assertIn('base cero', resumen_crecimiento(puntos))
+        for punto in puntos:
+            punto['metrica'] = 'posicion'
+        self.assertIn('cambio de posición', resumen_crecimiento(puntos))
+
+    def test_peru_prioritario_sin_atribuirle_senales_internacionales(self):
+        base = dict(termino='prueba', categoria='otros', fuente='tiktok', tipo='hashtag',
+                    indicador='Señal de prueba', metrica='presencia', valor=None,
+                    referencia='test', url='https://www.tiktok.com/')
+        resultado = dict(items=[dict(base, pais=None), dict(base, pais='PE'), dict(base, pais='MX')],
+                         modo='gratuito', consultado_en=datetime.now(timezone.utc).isoformat())
+        self.vista._recibir({'radar': resultado})
+        self.assertEqual(self.vista._visibles[0]['pais'], 'PE')
+        self.vista.mercado.setCurrentIndex(self.vista.mercado.findData('PE'))
+        self.assertEqual(len(self.vista._visibles), 1)
+        self.assertEqual(self.vista._visibles[0]['pais'], 'PE')
 
     def test_controller_trabaja_en_segundo_plano(self):
         class ServicioPrueba:

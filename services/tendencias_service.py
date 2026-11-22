@@ -1,5 +1,6 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+import re
 from statistics import mean
 
 import psycopg
@@ -8,6 +9,7 @@ from models.tendencia import AnalisisTendencia
 from repositories.tendencias_repository import TendenciasRepository
 from services.fuentes_tendencias import FuenteGoogleTrends, PAISES, normalizar, url_segura
 from services.radar_automatico import RadarAutomatico
+from services.importacion_tendencias import huella_json, leer_importacion, preparar_items
 
 
 def analizar_serie(serie, hoy=None):
@@ -82,7 +84,7 @@ class TendenciasService:
         self._radar = radar if radar is not None else RadarAutomatico(self._fuente)
 
     def ejecutar(self, accion, **opciones):
-        if accion in ('cargar_radar', 'buscar_radar'):
+        if accion in ('cargar_radar', 'buscar_radar', 'previsualizar_radar', 'importar_radar', 'historia_radar'):
             return self._ejecutar_radar(accion, opciones)
         try:
             mensaje = ''
@@ -153,18 +155,65 @@ class TendenciasService:
         return tema
 
     def _ejecutar_radar(self, accion, opciones):
-        historial = True
-        if accion == 'buscar_radar':
-            resultado = self._radar.buscar()
-            if not resultado.get('cache'):
+        resultado, mensaje, historial = None, '', True
+        try:
+            if accion in ('previsualizar_radar', 'importar_radar'):
+                parametros = {k: opciones[k] for k in
+                              ('ruta', 'formato', 'pais', 'periodo', 'referencia', 'fecha', 'ultimo_parcial') if k in opciones}
+                lote = leer_importacion(**parametros)
+                if accion == 'previsualizar_radar':
+                    return {'preview': lote, 'opciones_importacion': parametros}
+                if lote['huella'] != opciones.get('huella_confirmada'):
+                    raise ValueError('El archivo o contexto cambió desde la vista previa. Vuelve a previsualizarlo.')
+                creado = self._repositorio.guardar_lote(lote, opciones['id_usuario'])
+                mensaje = (f'Importación guardada: {len(lote["items"])} observaciones.' if creado
+                           else 'Este archivo y contexto ya estaban importados; no se duplicaron.')
+            elif accion == 'historia_radar':
+                clave = opciones.get('clave_serie', '')
+                if not re.fullmatch(r'[a-f0-9]{64}', clave):
+                    raise ValueError('Selecciona una serie válida.')
+                return {'historia': self._repositorio.cargar_historia(clave)}
+            elif accion == 'buscar_radar':
+                resultado = self._radar.buscar()
+                preparar_items(resultado['items'])
+                # Una misma respuesta en el mismo día no añade puntos artificiales.
+                identidad = [dict(i, observado_en=i['observado_en'][:10]) for i in resultado['items']]
+                lote = dict(items=resultado['items'], formato='consulta_oficial',
+                            huella=huella_json({'dia': resultado['consultado_en'][:10], 'items': identidad}),
+                            metadata={k: v for k, v in resultado.items() if k != 'items'})
                 try:
-                    self._repositorio.guardar_busqueda(resultado, opciones['id_usuario'])
+                    self._repositorio.guardar_lote(lote, opciones['id_usuario'])
                 except (psycopg.Error, ValueError):
-                    historial = False  # La falta de migración no impide consultar fuentes.
-        else:
+                    historial = False
             try:
-                resultado = self._repositorio.cargar_busqueda()
+                items = self._repositorio.cargar_senales()
             except (psycopg.Error, ValueError):
-                resultado, historial = None, False
-        return {'radar': resultado, 'historial': historial,
-                'conexion_comercial': self._radar.estado_conexion()}
+                if accion in ('importar_radar',):
+                    raise
+                historial = False
+                items = resultado['items'] if resultado else []
+            if not historial and resultado:
+                # El fallo de escritura no debe esconder las señales recién recibidas.
+                combinadas = {i['clave_serie']: i for i in items}
+                for item in resultado['items']:
+                    anterior = combinadas.get(item['clave_serie'])
+                    if anterior is None or item['observado_en'] >= anterior['observado_en']:
+                        combinadas[item['clave_serie']] = item
+                items = list(combinadas.values())
+            if resultado is None:
+                resultado = dict(items=items, modo='gratuito', advertencias=[],
+                                 consultado_en=datetime.now(timezone.utc).isoformat(), cache=False)
+            else:
+                resultado = dict(resultado, items=items)
+            if not historial:
+                mensaje = ('No se pudo leer/guardar el historial en PostgreSQL. '
+                           'Ejecuta database/radar_datos_reales.sql y revisa la conexión. '
+                           'Los resultados de red no se consideran guardados.')
+            return {'radar': resultado, 'historial': historial, 'mensaje': mensaje,
+                    'tiktok_configurado': self._radar.estado_conexion()}
+        except psycopg.errors.UndefinedTable:
+            raise ValueError('Falta instalar el historial: ejecuta database/radar_datos_reales.sql.') from None
+        except psycopg.Error:
+            raise ValueError('No se pudo guardar o leer PostgreSQL. Revisa conexión, usuario y permisos. No se confirmó la importación.') from None
+        except OSError:
+            raise ValueError('No se pudo leer el archivo seleccionado.') from None

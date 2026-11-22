@@ -19,6 +19,8 @@ from views.import_catalog_view import CatalogImportTab
 from views.import_inventory_view import InventoryImportTab
 from views.import_sales_view import SalesImportTab
 from views.import_suppliers_view import SuppliersImportTab
+from views.dashboard_theme import DASHBOARD_PALETTE, DASHBOARD_STYLES
+from views.tabla_paginada import TablaPaginada
 
 
 INK = '#09142f'
@@ -81,50 +83,64 @@ class IconBadge(QWidget):
 class LineIcon(QWidget):
     """Compact shell icon that does not depend on symbol font coverage."""
 
-    def __init__(self, kind, size=20, parent=None):
+    def __init__(self, kind, size=20, parent=None, palette=None):
         super().__init__(parent); self.kind=kind; self.setFixedSize(size,size)
+        self.colors = palette or {}
 
     def paintEvent(self,event):
-        p=QPainter(self); p.setRenderHint(QPainter.Antialiasing); p.setPen(QPen(QColor('#50617f'),1.6,Qt.SolidLine,Qt.RoundCap,Qt.RoundJoin)); p.setBrush(Qt.NoBrush); w=self.width(); h=self.height()
+        p=QPainter(self); p.setRenderHint(QPainter.Antialiasing); p.setPen(QPen(QColor(self.colors.get('muted', '#50617f')),1.6,Qt.SolidLine,Qt.RoundCap,Qt.RoundJoin)); p.setBrush(Qt.NoBrush); w=self.width(); h=self.height()
         if self.kind=='calendar':
             p.drawRoundedRect(QRectF(w*.18,h*.25,w*.64,h*.58),2,2); p.drawLine(QPointF(w*.18,h*.42),QPointF(w*.82,h*.42)); p.drawLine(QPointF(w*.34,h*.16),QPointF(w*.34,h*.32)); p.drawLine(QPointF(w*.66,h*.16),QPointF(w*.66,h*.32))
         elif self.kind=='bell':
             p.drawArc(QRectF(w*.25,h*.18,w*.50,h*.58),20*16,140*16); p.drawLine(QPointF(w*.25,h*.53),QPointF(w*.18,h*.72)); p.drawLine(QPointF(w*.18,h*.72),QPointF(w*.82,h*.72)); p.drawLine(QPointF(w*.82,h*.72),QPointF(w*.75,h*.53)); p.drawArc(QRectF(w*.42,h*.70,w*.16,h*.15),180*16,180*16)
-            p.setPen(Qt.NoPen); p.setBrush(QColor(PURPLE)); p.drawEllipse(QPointF(w*.77,h*.22),3.2,3.2)
+            p.setPen(Qt.NoPen); p.setBrush(QColor(self.colors.get('accent', PURPLE))); p.drawEllipse(QPointF(w*.77,h*.22),3.2,3.2)
         elif self.kind=='chevron':
             p.drawLine(QPointF(w*.30,h*.42),QPointF(w*.50,h*.60)); p.drawLine(QPointF(w*.50,h*.60),QPointF(w*.70,h*.42))
 
 
 class SalesChart(QWidget):
-    def __init__(self, line=False, parent=None):
+    def __init__(self, line=False, parent=None, palette=None):
         super().__init__(parent)
+        self.colors = palette or {}
         self.line = line
         self.values = [13, 15, 18, 20, 23, 25, 28, 31, 34, 29, 25, 19]
         self.setMinimumHeight(205)
 
+    def _bar_color(self, value):
+        low = QColor(self.colors['bar_low'])
+        high = QColor(self.colors['bar_high'])
+        minimum, maximum = min(self.values, default=0), max(self.values, default=0)
+        intensity = (value - minimum) / (maximum - minimum) if maximum > minimum else float(maximum > 0)
+        # Keep smaller months soft and reserve the strongest orange for the peak.
+        intensity = max(0.0, min(1.0, intensity)) ** 2
+        return QColor(*(round(start + (end - start) * intensity) for start, end in (
+            (low.red(), high.red()), (low.green(), high.green()), (low.blue(), high.blue()),
+        )))
+
     def paintEvent(self, event):
         p = QPainter(self); p.setRenderHint(QPainter.Antialiasing)
         area = self.rect().adjusted(45, 26, -18, -28)
-        p.setFont(QFont('Segoe UI', 8)); p.setPen(QColor(MUTED))
+        muted = self.colors.get('muted', MUTED)
+        p.setFont(QFont('Segoe UI', 8)); p.setPen(QColor(muted))
         for i in range(5):
             y = area.bottom() - area.height()*i/4
             p.drawText(QRectF(0,y-8,38,16), Qt.AlignRight|Qt.AlignVCenter, '0' if i == 0 else f'{i*10}K')
-            p.setPen(QPen(QColor('#e7ecf4'),1)); p.drawLine(area.left(),int(y),area.right(),int(y)); p.setPen(QColor(MUTED))
+            p.setPen(QPen(QColor(self.colors.get('grid', '#e7ecf4')),1)); p.drawLine(area.left(),int(y),area.right(),int(y)); p.setPen(QColor(muted))
         labels = ('Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic')
-        slot = area.width()/12; grad = QLinearGradient(0,area.top(),0,area.bottom()); grad.setColorAt(0,QColor('#6749fa')); grad.setColorAt(1,QColor('#765cf6'))
+        slot = area.width()/12; grad = QLinearGradient(0,area.top(),0,area.bottom()); grad.setColorAt(0,QColor(self.colors.get('chart_start', '#6749fa'))); grad.setColorAt(1,QColor(self.colors.get('chart_end', '#765cf6')))
         points=[]
         for i,(value,label) in enumerate(zip(self.values,labels)):
             x=area.left()+slot*i+slot/2; bh=value/40*area.height()
-            p.setPen(Qt.NoPen); p.setBrush(grad); p.drawRoundedRect(QRectF(x-slot*.31,area.bottom()-bh,slot*.62,bh),4,4)
-            p.setPen(QColor(MUTED)); p.drawText(QRectF(area.left()+slot*i,area.bottom()+6,slot,18),Qt.AlignCenter,label)
+            p.setPen(Qt.NoPen); p.setBrush(self._bar_color(value) if 'bar_low' in self.colors else grad); p.drawRoundedRect(QRectF(x-slot*.31,area.bottom()-bh,slot*.62,bh),4,4)
+            p.setPen(QColor(muted)); p.drawText(QRectF(area.left()+slot*i,area.bottom()+6,slot,18),Qt.AlignCenter,label)
             line_values = (8, 9, 11, 13, 16, 18, 20, 24, 27, 25, 23, 21)
             points.append(QPointF(x, area.bottom()-line_values[i]/40*area.height()))
         tip_x=area.left()+slot*8+slot/2; tip_y=max(2,area.bottom()-self.values[8]/40*area.height()-49); tip=QRectF(tip_x-32,tip_y,64,42)
-        p.setPen(QPen(QColor('#d8e0ec'),1)); p.setBrush(QColor('#ffffff')); p.drawRoundedRect(tip,6,6); p.setPen(QColor(MUTED)); p.setFont(QFont('Segoe UI',7)); p.drawText(tip.adjusted(0,3,0,-20),Qt.AlignCenter,'Sep 2025' if self.line else 'Ago 2025'); p.setPen(QColor(INK)); p.setFont(QFont('Segoe UI',9,QFont.Bold)); p.drawText(tip.adjusted(0,18,0,-2),Qt.AlignCenter,'$ 32,400')
+        p.setPen(QPen(QColor(self.colors.get('border', '#d8e0ec')),1)); p.setBrush(QColor(self.colors.get('surface', '#ffffff'))); p.drawRoundedRect(tip,6,6); p.setPen(QColor(muted)); p.setFont(QFont('Segoe UI',7)); p.drawText(tip.adjusted(0,3,0,-20),Qt.AlignCenter,'Sep 2025' if self.line else 'Ago 2025'); p.setPen(QColor(self.colors.get('ink', INK))); p.setFont(QFont('Segoe UI',9,QFont.Bold)); p.drawText(tip.adjusted(0,18,0,-2),Qt.AlignCenter,'$ 32,400')
         if self.line:
-            p.setPen(QPen(QColor('#4c28f4'),2)); p.setBrush(Qt.NoBrush); p.drawPolyline(points)
+            p.setPen(QPen(QColor(self.colors.get('line', '#4c28f4')),2)); p.setBrush(Qt.NoBrush); p.drawPolyline(points)
             for pt in points:
-                p.setBrush(Qt.white); p.setPen(QPen(QColor('#4c28f4'),2)); p.drawEllipse(pt,4,4)
+                p.setBrush(QColor(self.colors.get('surface', '#ffffff'))); p.setPen(QPen(QColor(self.colors.get('line', '#4c28f4')),2)); p.drawEllipse(pt,4,4)
 
 
 class Donut(QWidget):
@@ -132,22 +148,26 @@ class Donut(QWidget):
     colors = ('#5133f5','#3598ed','#ef5c99','#ff8b22','#ffbd31','#98a6bf')
     labels = ('Ropa','Tecnología','Colección K-pop','Decoración','Papelería','Accesorios')
 
-    def __init__(self, total='25,430', parent=None):
+    def __init__(self, total='25,430', parent=None, palette=None):
         super().__init__(parent); self.total=total; self.setMinimumHeight(205)
+        self.palette_colors = palette or {}
+        self.colors = self.palette_colors.get('categories', type(self).colors)
 
     def paintEvent(self,event):
         p=QPainter(self); p.setRenderHint(QPainter.Antialiasing)
+        muted = self.palette_colors.get('muted', MUTED)
+        ink = self.palette_colors.get('ink', INK)
         size=min(150,self.height()-24,self.width()*.48); ring=QRectF(10,(self.height()-size)/2,size,size)
         start=90*16; pen=QPen(); pen.setWidth(max(25,int(size*.19))); pen.setCapStyle(Qt.FlatCap)
         for value,color in zip(self.values,self.colors):
             span=-int(value/100*360*16); pen.setColor(QColor(color)); p.setPen(pen); p.drawArc(ring.adjusted(pen.width()/2,pen.width()/2,-pen.width()/2,-pen.width()/2),start,span); start+=span
-        p.setPen(QColor(MUTED)); p.setFont(QFont('Segoe UI',9)); p.drawText(ring.adjusted(20,38,-20,-55),Qt.AlignCenter,'Total')
-        p.setPen(QColor(INK)); p.setFont(QFont('Segoe UI',14,QFont.Bold)); p.drawText(ring.adjusted(10,57,-10,-35),Qt.AlignCenter,self.total)
-        p.setPen(QColor(MUTED)); p.setFont(QFont('Segoe UI',8)); p.drawText(ring.adjusted(15,78,-15,-15),Qt.AlignCenter,'unidades')
+        p.setPen(QColor(muted)); p.setFont(QFont('Segoe UI',9)); p.drawText(ring.adjusted(20,38,-20,-55),Qt.AlignCenter,'Total')
+        p.setPen(QColor(ink)); p.setFont(QFont('Segoe UI',14,QFont.Bold)); p.drawText(ring.adjusted(10,57,-10,-35),Qt.AlignCenter,self.total)
+        p.setPen(QColor(muted)); p.setFont(QFont('Segoe UI',8)); p.drawText(ring.adjusted(15,78,-15,-15),Qt.AlignCenter,'unidades')
         x=ring.right()+28; top=(self.height()-len(self.values)*25)/2
         for i,(label,value,color) in enumerate(zip(self.labels,self.values,self.colors)):
             y=top+i*25; p.setPen(Qt.NoPen); p.setBrush(QColor(color)); p.drawEllipse(QPointF(x,y+8),5,5)
-            p.setPen(QColor(INK)); p.setFont(QFont('Segoe UI',8)); p.drawText(QRectF(x+14,y,self.width()-x-55,17),Qt.AlignVCenter,label); p.drawText(QRectF(self.width()-42,y,35,17),Qt.AlignRight|Qt.AlignVCenter,f'{value}%')
+            p.setPen(QColor(ink)); p.setFont(QFont('Segoe UI',8)); p.drawText(QRectF(x+14,y,self.width()-x-55,17),Qt.AlignVCenter,label); p.drawText(QRectF(self.width()-42,y,35,17),Qt.AlignRight|Qt.AlignVCenter,f'{value}%')
 
 
 class DropZone(QFrame):
@@ -162,8 +182,9 @@ class DropZone(QFrame):
 
 
 class BaseContentView(QWidget):
-    def __init__(self,title,subtitle,sesion,greeting=None,parent=None):
+    def __init__(self,title,subtitle,sesion,greeting=None,parent=None,theme=None):
         super().__init__(parent,objectName='corePage'); self.setStyleSheet(STYLES)
+        self.theme = theme or {}
         self.sesion=sesion
         root=QVBoxLayout(self); root.setContentsMargins(0,0,0,0)
         self.scroll=QScrollArea(objectName='coreScroll'); self.scroll.setWidgetResizable(True); self.scroll.setFrameShape(QFrame.NoFrame)
@@ -178,8 +199,8 @@ class BaseContentView(QWidget):
         if greeting: copy.addWidget(QLabel(greeting,objectName='greeting'))
         copy.addWidget(QLabel(subtitle,objectName='subtitle')); row.addLayout(copy); row.addStretch()
         self.shell_header=QWidget(objectName='shellHeader'); shell=QHBoxLayout(self.shell_header); shell.setContentsMargins(0,2,0,0); shell.setSpacing(13)
-        date=QFrame(objectName='dateFrame'); date.setFixedWidth(242); dl=QHBoxLayout(date); dl.setContentsMargins(13,8,10,8); dl.addWidget(LineIcon('calendar',18)); dl.addWidget(QLabel('01/08/2025 - 31/08/2025',objectName='dateText'),1); dl.addWidget(LineIcon('chevron',14)); shell.addWidget(date)
-        shell.addWidget(LineIcon('bell',24))
+        date=QFrame(objectName='dateFrame'); date.setFixedWidth(242); dl=QHBoxLayout(date); dl.setContentsMargins(13,8,10,8); dl.addWidget(LineIcon('calendar',18,palette=self.theme)); dl.addWidget(QLabel('01/08/2025 - 31/08/2025',objectName='dateText'),1); dl.addWidget(LineIcon('chevron',14,palette=self.theme)); shell.addWidget(date)
+        shell.addWidget(LineIcon('bell',24,palette=self.theme))
         avatar=QLabel(self.sesion.iniciales,objectName='topAvatar'); avatar.setAlignment(Qt.AlignCenter); avatar.setFixedSize(40,40); shell.addWidget(avatar)
         account=QVBoxLayout(); account.setSpacing(0); account.addWidget(QLabel(self.sesion.usuario,objectName='accountName')); account.addWidget(QLabel(self.sesion.rol_mostrar,objectName='accountRole')); shell.addLayout(account)
         shell.addWidget(QLabel('⌄',objectName='muted')); row.addWidget(self.shell_header,alignment=Qt.AlignTop); return row
@@ -191,7 +212,7 @@ class BaseContentView(QWidget):
     def metric(kind,value,label,change,color,bg,detail='vs. mes anterior',height=108):
         card=QFrame(objectName='card'); card.setFixedHeight(height); lay=QHBoxLayout(card); lay.setContentsMargins(14,12,14,12); lay.setSpacing(14)
         lay.addWidget(IconBadge(kind,color,bg,56)); text=QVBoxLayout(); text.setSpacing(1); text.addStretch(); text.addWidget(QLabel(value,objectName='metricValue')); text.addWidget(QLabel(label,objectName='metricLabel')); text.addStretch(); lay.addLayout(text,1)
-        side=QVBoxLayout(); side.setSpacing(2); side.addStretch(); chip=QLabel(change,objectName='badChip' if 'Stock crítico' in label and '↑' in change else 'goodChip'); chip.setAlignment(Qt.AlignCenter); side.addWidget(chip); side.addWidget(QLabel(detail,objectName='smallMuted'),alignment=Qt.AlignRight); side.addStretch(); lay.addLayout(side); return card
+        side=QVBoxLayout(); side.setSpacing(2); side.addStretch(); chip=QLabel(change,objectName='badChip' if 'stock crítico' in ' '.join(label.lower().split()) and '↑' in change else 'goodChip'); chip.setAlignment(Qt.AlignCenter); side.addWidget(chip); side.addWidget(QLabel(detail,objectName='smallMuted'),alignment=Qt.AlignRight); side.addStretch(); lay.addLayout(side); return card
 
     def metrics(self,items,height=108):
         grid=QGridLayout(); grid.setSpacing(10)
@@ -210,7 +231,7 @@ class BaseContentView(QWidget):
     @staticmethod
     def table(headers,rows,height=210,numbered=False):
         if numbered: headers=('#',)+tuple(headers); rows=tuple((i+1,)+tuple(r) for i,r in enumerate(rows))
-        table=QTableWidget(len(rows),len(headers),objectName='coreTable'); table.setHorizontalHeaderLabels(headers); table.verticalHeader().hide(); table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch); table.horizontalHeader().setMinimumSectionSize(52)
+        table=TablaPaginada(len(rows),len(headers),objectName='coreTable'); table.setHorizontalHeaderLabels(headers); table.verticalHeader().hide(); table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch); table.horizontalHeader().setMinimumSectionSize(52)
         table.setEditTriggers(QAbstractItemView.NoEditTriggers); table.setSelectionMode(QAbstractItemView.NoSelection); table.setFocusPolicy(Qt.NoFocus); table.setShowGrid(False); table.setFixedHeight(height); table.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Fixed); table.verticalHeader().setDefaultSectionSize(31)
         for r,row in enumerate(rows):
             for c,val in enumerate(row):
@@ -226,11 +247,13 @@ class BaseContentView(QWidget):
 
 class DashboardView(BaseContentView):
     def __init__(self,sesion,parent=None):
-        super().__init__('Dashboard','Aquí tienes un resumen del desempeño de tu negocio.',sesion,parent=parent)
-        self.body.addLayout(self.metrics((
-            ('bars','$ 25,430','Ventas del mes','↑ 12%',PURPLE,'#f0edff'),('money','$ 320,850','Ingresos estimados','↑ 8%',GREEN,'#e8f8f1'),
-            ('stock','24','Productos con stock\ncrítico','↑ 33%',RED,'#ffedf0'),('megaphone','6','Campañas sugeridas','↑ 50%',ORANGE,'#fff5e5')),115)); self.body.addSpacing(6)
-        top=QGridLayout(); top.setSpacing(10); sales=self.section('Ventas por mes   ⓘ',SalesChart(), 'Ventas'); donut=self.section('Categorías con mayor demanda',Donut()); seasons=self._seasons()
+        super().__init__('Dashboard','Aquí tienes un resumen del desempeño de tu negocio.',sesion,parent=parent,theme=DASHBOARD_PALETTE)
+        self.setStyleSheet(DASHBOARD_STYLES)
+        metrics = self.metrics((
+            ('bars','$ 25,430','Ventas del mes','↑ 12%','#d14b13','#fff0e5'),('money','$ 320,850','Ingresos estimados','↑ 8%','#60656b','#e7e9ed'),
+            ('stock','24','Productos con stock\ncrítico','↑ 33%','#b63738','#fff0f0'),('megaphone','6','Campañas sugeridas','↑ 50%','#d14b13','#fff0e5')),115)
+        self.body.addLayout(metrics); self.body.addSpacing(6)
+        top=QGridLayout(); top.setSpacing(10); sales=self.section('Ventas por mes   ⓘ',SalesChart(palette=self.theme), 'Ventas'); donut=self.section('Categorías con mayor demanda',Donut(palette=self.theme)); seasons=self._seasons()
         for card in (sales,donut,seasons): card.setFixedHeight(324)
         top.addWidget(sales,0,0,1,2); top.addWidget(donut,0,2); top.addWidget(seasons,0,3); top.setColumnStretch(0,9); top.setColumnStretch(1,9); top.setColumnStretch(2,10); top.setColumnStretch(3,12); self.body.addLayout(top)
         lower=QGridLayout(); lower.setSpacing(10); stock=self._stock_alerts(); trends=self._trend_card(); promos=self._promos()
@@ -245,7 +268,14 @@ class DashboardView(BaseContentView):
 
     def _stock_alerts(self):
         rows=(('🎧  Audífonos Bluetooth','8','Crítico','Reabastecer'),('🎒  Mochila escolar','12','Alto','Reabastecer'),('👕  Playera K-pop','15','Alto','Reabastecer'),('🎃  Decoración Halloween','20','Medio','Monitorear'),('📘  Cuaderno universitario','18','Medio','Monitorear'))
-        return self.section('Alertas de abastecimiento   ⓘ',self.table(('Producto','Stock actual','Nivel de riesgo','Acción sugerida'),rows,245),'Ver todas')
+        table = self.table(('Producto','Stock actual','Nivel de riesgo','Acción sugerida'),rows,245)
+        table.setAlternatingRowColors(True)
+        for row in range(table.rowCount()):
+            risk = table.item(row, 2)
+            critical = risk.text() == 'Crítico'
+            risk.setForeground(QColor('#b63738' if critical else '#a85a12'))
+            risk.setBackground(QColor('#fff0f0' if critical else '#fff2e4'))
+        return self.section('Alertas de abastecimiento   ⓘ',table,'Ver todas')
 
     def _trend_card(self):
         box=QWidget(); lay=QVBoxLayout(box); lay.setContentsMargins(0,0,0,0); lay.setSpacing(6)
@@ -366,9 +396,7 @@ class ProductsView(BaseContentView):
 
     def _listing(self):
         table=self.table(('Código','Producto','Categoría','Stock actual','Stock mínimo','Proveedor','Tiempo de entrega','Precio compra','Estado','Acciones'),PRODUCTS,343); table.verticalHeader().setDefaultSectionSize(38)
-        card=self.section('Listado de productos   ⓘ',table,'Agregar producto','248 productos en total'); foot=QHBoxLayout(); foot.addWidget(QLabel('Mostrando 1-8 de 248 productos   ⓘ',objectName='muted')); foot.addStretch()
-        for text in ('‹','1','2','3','4','5','...','31','›'): foot.addWidget(QPushButton(text,objectName='pageActive' if text=='1' else 'pageButton'))
-        foot.addStretch(); foot.addWidget(QLabel('Filas por página',objectName='muted')); combo=QComboBox(); combo.addItems(('8','16','24')); foot.addWidget(combo); card.layout().addLayout(foot); return card
+        return self.section('Listado de productos   ⓘ',table,'Agregar producto',f'{len(PRODUCTS)} productos en esta tabla')
 
     def _filter(self):
         term=self.search.text().casefold()

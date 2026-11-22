@@ -1,8 +1,8 @@
-"""Un botón para descubrir; las fuentes y el almacenamiento quedan detrás."""
+"""Radar real: consulta autorizada, importación trazable e historial PostgreSQL."""
 
 from datetime import datetime
 
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import Qt, QUrl, QTimer
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QButtonGroup, QComboBox, QDialog, QDialogButtonBox, QFrame, QGridLayout,
@@ -11,8 +11,11 @@ from PySide6.QtWidgets import (
 
 from config.radar import CATEGORIAS_RADAR
 from controllers.tendencias_controller import TendenciasController
-from services.fuentes_tendencias import url_segura
+from services.fuentes_tendencias import PAISES, url_segura
 from views.intelligence_redesign_views import _BaseIntelligenceView
+from views.radar_importacion_dialog import ImportacionRadarDialog, confirmar_importacion
+from views.radar_historia_dialog import HistoriaRadarDialog
+from services.importacion_tendencias import METRICAS
 
 
 def texto(contenido, nombre=None):
@@ -32,7 +35,7 @@ def abrir_url(url):
 
 class TrendsView(_BaseIntelligenceView):
     TITLE = 'Radar de tendencias'
-    SUBTITLE = 'Ideas para tu tienda, sin complicaciones.'
+    SUBTITLE = 'Señales reales, procedencia e historial. Sin demanda inventada.'
     PAGE_ICON = '◎'
 
     def __init__(self, sesion, parent=None, controller=None):
@@ -44,6 +47,7 @@ class TrendsView(_BaseIntelligenceView):
         self._conexion = False
         self._historial = True
         self._accion = None
+        self._pendiente = None
         super().__init__(sesion, parent)
         self.controller = controller if controller is not None else TendenciasController(parent=self)
         self.controller.actualizado.connect(self._recibir)
@@ -93,7 +97,7 @@ class TrendsView(_BaseIntelligenceView):
         copy.setSpacing(9)
         copy.addWidget(texto('PERÚ · OPORTUNIDADES PARA TU TIENDA', 'heroEyebrow'))
         copy.addWidget(texto('¿Qué se está buscando?', 'heroTitle'))
-        copy.addWidget(texto('Descubre productos y temas por categoría.\nSin registrar términos ni subir archivos.', 'heroCopy'))
+        copy.addWidget(texto('Consulta señales reales o importa observaciones de TikTok y Google.\nCada fuente, país y métrica conserva su propio historial.', 'heroCopy'))
         fila.addLayout(copy, 1)
         self.buscar_tendencias = QPushButton('Buscar tendencias', objectName='radarSearch')
         self.buscar_tendencias.setCursor(Qt.PointingHandCursor)
@@ -101,18 +105,33 @@ class TrendsView(_BaseIntelligenceView):
         fila.addWidget(self.buscar_tendencias, alignment=Qt.AlignVCenter)
         layout.addWidget(hero)
 
+        herramientas = QHBoxLayout()
+        self.importar_csv = QPushButton('Importar CSV real', objectName='sourceLink')
+        self.importar_csv.clicked.connect(self._importar)
+        herramientas.addWidget(self.importar_csv)
+        for nombre, url in (
+                ('Abrir TikTok Creative Center ↗', 'https://ads.tiktok.com/business/creativecenter/'),
+                ('Google Trends · Perú ↗', 'https://trends.google.com/trends/explore?geo=PE&hl=es')):
+            boton = QPushButton(nombre, objectName='sourceLink')
+            boton.clicked.connect(lambda _=False, u=url: abrir_url(u))
+            herramientas.addWidget(boton)
+        herramientas.addStretch()
+        layout.addLayout(herramientas)
+        self.aviso = texto('', 'radarStatus')
+        layout.addWidget(self.aviso)
+
         self.progreso = QProgressBar()
         self.progreso.setRange(0, 0)
         self.progreso.setTextVisible(False)
         self.progreso.hide()
         layout.addWidget(self.progreso)
 
-        categorias = QHBoxLayout()
+        categorias = QGridLayout()
         categorias.setSpacing(8)
         self.grupo_categorias = QButtonGroup(self)
         self.grupo_categorias.setExclusive(True)
         self.botones_categoria = {}
-        for clave, nombre in [(None, 'Todas')] + [(c, v['nombre']) for c, v in CATEGORIAS_RADAR.items()]:
+        for indice, (clave, nombre) in enumerate([(None, 'Todas')] + [(c, v['nombre']) for c, v in CATEGORIAS_RADAR.items()]):
             boton = QPushButton(nombre, objectName='categoryChip')
             boton.setCheckable(True)
             boton.setChecked(clave is None)
@@ -120,16 +139,25 @@ class TrendsView(_BaseIntelligenceView):
             boton.clicked.connect(lambda _marcado=False, c=clave: self._cambiar_categoria(c))
             self.grupo_categorias.addButton(boton)
             self.botones_categoria[clave] = boton
-            categorias.addWidget(boton)
-        categorias.addStretch()
+            categorias.addWidget(boton, indice // 4, indice % 4)
+        layout.addLayout(categorias)
+        filtros = QHBoxLayout()
+        self.mercado = QComboBox()
+        self.mercado.addItem('Todos · Perú primero', None)
+        for codigo, nombre in PAISES.items():
+            self.mercado.addItem(nombre, codigo)
+        self.mercado.addItem('País no informado', 'ND')
+        self.mercado.currentIndexChanged.connect(self._mostrar)
+        filtros.addWidget(self.mercado)
         self.fuente = QComboBox()
         self.fuente.addItem('Todas las fuentes', None)
         self.fuente.addItem('Google', 'google')
         self.fuente.addItem('TikTok', 'tiktok')
         self.fuente.setMinimumWidth(155)
         self.fuente.currentIndexChanged.connect(self._mostrar)
-        categorias.addWidget(self.fuente)
-        layout.addLayout(categorias)
+        filtros.addWidget(self.fuente)
+        filtros.addStretch()
+        layout.addLayout(filtros)
 
         cabecera = QHBoxLayout()
         self.resumen = texto('Tu próxima oportunidad empieza aquí', 'sectionTitle')
@@ -157,7 +185,7 @@ class TrendsView(_BaseIntelligenceView):
         layout.addWidget(self.vacio)
 
         pie = QHBoxLayout()
-        self.conexiones = texto('Google: feed básico · TikTok: conexión pendiente', 'sectionSubtitle')
+        self.conexiones = texto('Google: RSS Perú + CSV · TikTok: importación manual disponible', 'sectionSubtitle')
         pie.addWidget(self.conexiones, 1)
         ayuda = QPushButton('Sobre las fuentes y la conexión', objectName='helpLink')
         ayuda.clicked.connect(self._ayuda)
@@ -171,38 +199,67 @@ class TrendsView(_BaseIntelligenceView):
             self._iniciado = True
             self._ejecutar('cargar_radar')  # Solo historial, nunca consume APIs al abrir.
 
-    def _ejecutar(self, accion):
+    def _ejecutar(self, accion, **opciones):
         if not self._ocupado:
             self._accion = accion
-            self.controller.ejecutar(accion, id_usuario=self.sesion.id_usuario)
+            self.controller.ejecutar(accion, id_usuario=self.sesion.id_usuario, **opciones)
+
+    def _importar(self):
+        dialogo = ImportacionRadarDialog(self)
+        if dialogo.exec() == QDialog.Accepted:
+            self._ejecutar('previsualizar_radar', **dialogo.opciones())
 
     def _cambiar_ocupado(self, ocupado):
         self._ocupado = ocupado
         self.buscar_tendencias.setEnabled(not ocupado)
+        self.importar_csv.setEnabled(not ocupado)
         buscando = ocupado and self._accion == 'buscar_radar'
         self.buscar_tendencias.setText('Buscando…' if buscando else 'Buscar tendencias')
-        self.progreso.setVisible(buscando)
+        self.progreso.setVisible(ocupado)
         if buscando:
             self.estado.setText('Consultando las fuentes…')
+        if not ocupado and self._pendiente:
+            accion, opciones = self._pendiente
+            self._pendiente = None
+            QTimer.singleShot(0, lambda: self._ejecutar(accion, **opciones))
 
     def _recibir(self, respuesta):
+        if 'preview' in respuesta:
+            lote = respuesta['preview']
+            if confirmar_importacion(self, lote):
+                opciones = dict(respuesta['opciones_importacion'], huella_confirmada=lote['huella'])
+                if self._ocupado:
+                    self._pendiente = ('importar_radar', opciones)
+                else:
+                    self._ejecutar('importar_radar', **opciones)
+            return
+        if 'historia' in respuesta:
+            HistoriaRadarDialog(respuesta['historia'], self).exec()
+            return
         resultado = respuesta.get('radar')
         if resultado is not None:
             self._resultado = resultado
-        self._conexion = respuesta.get('conexion_comercial', False)
+        self._conexion = respuesta.get('tiktok_configurado', False)
         self._historial = respuesta.get('historial', True)
-        self.conexiones.setText('Google: consultas relacionadas · TikTok: videos, no búsquedas'
-                               if self._conexion else 'Google: feed básico · TikTok: conexión pendiente')
+        self.conexiones.setText('Google: RSS Perú + CSV · TikTok: API configurada (autorización sujeta a respuesta)'
+                               if self._conexion else 'Google: RSS Perú + CSV · TikTok: importación manual; API sin configurar')
+        avisos = [respuesta.get('mensaje', '')]
+        if resultado:
+            avisos.extend(resultado.get('advertencias', []))
+            if 'recibidas_rss' in resultado:
+                avisos.append(f'RSS Perú: {resultado["recibidas_rss"]} consultas recibidas. No es un catálogo de productos.')
+        self.aviso.setText('\n'.join(a for a in avisos if a))
         if self._resultado:
             fecha = datetime.fromisoformat(self._resultado['consultado_en']).astimezone()
             nota = ' · resultados recientes reutilizados' if self._resultado.get('cache') else ''
             if self._resultado.get('advertencias'):
                 nota += ' · algunas fuentes no respondieron'
-            self.estado.setText(f'Última búsqueda: {fecha:%d/%m %H:%M}{nota}')
+            self.estado.setText(f'Panel cargado: {fecha:%d/%m %H:%M}{nota}. Fechas de señal en cada tarjeta.')
         self._mostrar()
 
     def _error(self, mensaje):
         self.estado.setText(mensaje)
+        self.aviso.setText(mensaje)
         if not self._resultado:
             self.vacio_titulo.setText('No pudimos completar la búsqueda')
             self.vacio_texto.setText('Puedes volver a intentarlo. No se han generado resultados de ejemplo.')
@@ -218,22 +275,20 @@ class TrendsView(_BaseIntelligenceView):
                 item.widget().deleteLater()
         items = self._resultado.get('items', []) if self._resultado else []
         self._visibles = [i for i in items if (self._categoria is None or i['categoria'] == self._categoria)
-                          and (self.fuente.currentData() is None or i['fuente'] == self.fuente.currentData())]
+                          and (self.fuente.currentData() is None or i['fuente'] == self.fuente.currentData())
+                          and (self.mercado.currentData() is None or (i.get('pais') or 'ND') == self.mercado.currentData())]
+        self._visibles.sort(key=lambda i: 0 if i.get('pais') == 'PE' else 1)
         for indice, item in enumerate(self._visibles):
             self.tarjetas.addWidget(self._tarjeta(item), indice // 3, indice % 3)
         self.vacio.setVisible(not self._visibles)
         if self._resultado:
             self.resumen.setText(f'{len(self._visibles)} resultados para explorar')
             self.vacio_titulo.setText('Todavía no hay resultados para esta selección')
-            if self.fuente.currentData() == 'tiktok' and not self._conexion:
-                self.vacio_texto.setText('TikTok necesita una conexión de datos, configurada una sola vez. No ofrece aquí un ranking público de búsquedas de productos en Perú.')
-            elif self._resultado.get('modo') == 'gratuito':
-                self.vacio_texto.setText('El feed gratuito de Google no mostró consultas comerciales reconocibles. Para explorar productos por categoría hace falta activar la conexión comercial; no se rellenará con noticias ni ejemplos.')
-            else:
-                self.vacio_texto.setText('Las fuentes consultadas no devolvieron coincidencias para esta selección. Prueba otra categoría o fuente.')
+            self.vacio_texto.setText('Importa observaciones reales de TikTok o CSV de Google Trends. '
+                                    'El RSS peruano puede no incluir productos. La conexión de datos API de TikTok requiere autorización; '
+                                    'no se rellenará este panel con ejemplos.')
 
-    @staticmethod
-    def _tarjeta(item):
+    def _tarjeta(self, item):
         card = QFrame(objectName='trendCard')
         card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         contenido = QVBoxLayout(card)
@@ -247,7 +302,7 @@ class TrendsView(_BaseIntelligenceView):
         icono.setToolTip('Icono de categoría, no fotografía del producto.')
         cabecera.addWidget(icono)
         cabecera.addWidget(texto(categoria['nombre'], 'cardSource'), 1)
-        cabecera.addWidget(texto('Google · Perú' if item['fuente'] == 'google' else 'TikTok · sin país confirmado', 'cardSource'))
+        cabecera.addWidget(texto(f'{item["fuente"].title()} · {item.get("pais") or "país no informado"}', 'cardSource'))
         contenido.addLayout(cabecera)
         titulo = texto(item['termino'], 'cardTitle')
         titulo.setToolTip(item['termino'])
@@ -256,21 +311,28 @@ class TrendsView(_BaseIntelligenceView):
         contenido.addWidget(texto(item['indicador'], 'cardSource'))
         valor = item.get('valor')
         if item['metrica'] == 'crecimiento':
-            metrica = f'+{valor:,.0f}% en búsquedas' if valor is not None else (item.get('etiqueta_original') or 'Crecimiento sin cifra')
+            metrica = f'{valor:+,.0f}% reportado por la fuente' if valor is not None else (item.get('etiqueta_original') or 'Crecimiento sin cifra')
         elif item['metrica'] == 'interes_relativo':
-            metrica = f'Interés relativo: {valor:g}/100'
+            metrica = f'Interés relativo: {valor:g}/100' if valor is not None else 'Interés: ' + (item.get('etiqueta_original') or 'sin cifra')
         elif item['metrica'] == 'reproducciones':
-            metrica = f'{valor:,} reproducciones' if valor is not None else 'Sin cifra de reproducciones'
-        else:
+            metrica = f'{valor:,} reproducciones' if valor is not None else 'Reproducciones (texto): ' + (item.get('etiqueta_original') or 'sin cifra')
+        elif item['metrica'] == 'trafico_rss':
             metrica = 'Tráfico aprox.: ' + (item.get('etiqueta_original') or 'no informado')
+        else:
+            metrica = METRICAS.get(item['metrica'], item['metrica']) + ': ' + (f'{valor:g}' if valor is not None else (item.get('etiqueta_original') or 'sin cifra'))
         contenido.addWidget(texto(metrica, 'cardMetric'))
         if item['fuente'] == 'tiktok':
-            nota = 'Video sobre el tema. Las reproducciones no son búsquedas ni confirman demanda en Perú.'
+            nota = 'Señal de TikTok, no ventas ni demanda confirmada en Perú. Tipo: ' + item['tipo'] + '.'
         elif item['tipo'] == 'tema':
             nota = 'Tema de interés, no un producto validado ni demanda de merchandising.'
         else:
             nota = f'Consulta recibida de la fuente, relacionada con «{item["referencia"]}». No confirma ventas.'
         contenido.addWidget(texto(nota, 'cardNote'))
+        contenido.addWidget(texto(item.get('proveedor', ''), 'cardSource'))
+        if item.get('observado_en'):
+            contenido.addWidget(texto('Observado: ' + item['observado_en'][:10], 'cardNote'))
+        if item.get('parcial'):
+            contenido.addWidget(texto('Último punto parcial · excluido del cálculo', 'cardNote'))
         contenido.addWidget(texto(item.get('periodo', ''), 'cardNote'))
         if item['fuente'] == 'tiktok' and item.get('publicado'):
             contenido.addWidget(texto('Publicado: ' + item['publicado'][:10], 'cardNote'))
@@ -279,6 +341,10 @@ class TrendsView(_BaseIntelligenceView):
         abrir.setCursor(Qt.PointingHandCursor)
         abrir.clicked.connect(lambda _checked=False, url=item['url']: abrir_url(url))
         contenido.addWidget(abrir)
+        if item.get('clave_serie'):
+            historia = QPushButton('Ver histórico y crecimiento', objectName='sourceLink')
+            historia.clicked.connect(lambda _=False, c=item['clave_serie']: self._ejecutar('historia_radar', clave_serie=c))
+            contenido.addWidget(historia)
         return card
 
     def _ayuda(self):
@@ -287,12 +353,17 @@ class TrendsView(_BaseIntelligenceView):
         dialogo.setMinimumWidth(560)
         layout = QVBoxLayout(dialogo)
         informacion = (
-            'El botón consulta las fuentes disponibles y agrupa lo recibido. No existe una lista pública completa de todos los productos en tendencia.\n\n'
-            'Google básico: RSS de Perú, filtrado por vocabulario comercial. Puede no encontrar productos.\n\n'
-            'Conexión comercial opcional: SerpApi permite consultar automáticamente búsquedas relacionadas de Google Trends para seis categorías. Los índices son relativos a cada consulta, no un ranking global ni volúmenes absolutos.\n\n'
-            'TikTok: la conexión opcional devuelve videos de Discover y sus reproducciones, NO cuántas veces se buscó un producto. No se atribuyen a Perú ni se consideran un ranking de búsquedas. Creator Search Insights sí permite explorar búsquedas en TikTok, con acceso y disponibilidad propios.\n\n'
-            'La conexión la configura un administrador una sola vez en config/.env: SERPAPI_API_KEY y RADAR_SERPAPI_ENABLED=true. Habilitarla autoriza hasta 12 solicitudes por actualización, según el plan del proveedor. No está activada por defecto. Se reutiliza la última consulta de esta sesión durante 15 minutos.\n\n'
-            'Historial opcional: ejecutar database/radar_busqueda_automatica.sql. La consulta funciona aunque el historial no esté instalado. No se modifica el catálogo ni se crean compras.'
+            'Gratis y sin scraping: RSS oficial de Google Perú, CSV exportados por ti y observaciones manuales de TikTok. '
+            'No hay proveedor comercial activo ni productos de ejemplo.\n\n'
+            'Importar CSV real: primero valida y previsualiza; después confirma para guardar en PostgreSQL. '
+            'La plantilla TikTok es del radar, no un exportador nativo universal. Si Creative Center ofrece descarga para tu cuenta, '
+            'adapta únicamente datos cuyo uso esté permitido; si no, registra observaciones visibles. No atribuyas Perú por el idioma del contenido.\n\n'
+            'Discovery API requiere una app aprobada y acceso autorizado. Hashtags: token de anunciante y advertiser_id; '
+            'se solicita PE/7DAY sin cambiar de país si falla. Búsquedas: token Business con discovery.search.words y open_id; '
+            'no informa país ni volumen, por lo que no se etiqueta como demanda peruana. Configurar no garantiza autorización.\n\n'
+            'Historial: instala database/radar_datos_reales.sql. Cada archivo conserva SHA256, fuente, fecha y contexto. '
+            'Los gráficos no mezclan métricas, países ni escalas de exportaciones Google. Los huecos, <1 y parciales no se estiman. '
+            'No se crean productos en el catálogo ni compras. Guía completa: docs/radar_tendencias.md.'
         )
         if not self._historial:
             informacion += '\n\nEsta búsqueda no pudo guardarse en PostgreSQL. Los resultados actuales siguen disponibles en pantalla.'

@@ -14,6 +14,7 @@ import psycopg
 from config.database import obtener_conexion
 from models.tendencia import PuntoInteres, SerieInteres
 from repositories.tendencias_repository import TendenciasRepository
+from services.importacion_tendencias import huella_json, preparar_items
 
 
 @unittest.skipUnless(os.getenv('FLAMAR_TEST_DB') == '1', 'Requiere FLAMAR_TEST_DB=1 y PostgreSQL configurado')
@@ -36,7 +37,7 @@ class RepositorioPostgresTests(unittest.TestCase):
             cursor.execute(f'CREATE SCHEMA {esquema}')
             cursor.execute(f'SET LOCAL search_path TO {esquema}')
             cursor.execute("SET LOCAL statement_timeout TO '10s'")
-            for nombre in ('flamar_postgres.sql', 'radar_tendencias.sql', 'radar_busqueda_automatica.sql'):
+            for nombre in ('flamar_postgres.sql', 'radar_tendencias.sql', 'radar_busqueda_automatica.sql', 'radar_datos_reales.sql'):
                 sql = (raiz / 'database' / nombre).read_text(encoding='utf-8')
                 sql = re.sub(r'^\s*(?:BEGIN|COMMIT);\s*$', '', sql, flags=re.MULTILINE)
                 cursor.execute(sql)
@@ -111,6 +112,58 @@ class RepositorioPostgresTests(unittest.TestCase):
         self.repo.guardar_busqueda(resultado, self.usuario)
         self.assertEqual(self.repo.cargar_busqueda(), resultado)
         self.assertEqual(self.repo.cargar()['temas'], [])
+
+    def senal(self, fecha='2025-01-01', valor=20, pais='PE'):
+        return preparar_items([dict(termino='Prueba de integración', fuente='tiktok', origen='tiktok_manual',
+            pais=pais, metrica='reproducciones', contexto='mismos filtros/7DAY', tipo='producto',
+            observado_en=fecha + 'T00:00:00+00:00', valor=valor, url='https://ads.tiktok.com/',
+            categoria='otros', periodo='7DAY', proveedor='Prueba aislada')])[0]
+
+    def lote(self, items):
+        return dict(items=items, formato='tiktok_manual', huella=huella_json(items), archivo='prueba.csv')
+
+    def test_nuevo_historial_deduplica_ordena_y_no_mezcla_paises(self):
+        a, b, c = self.senal(), self.senal('2025-01-02', 40), self.senal(pais='MX')
+        self.assertTrue(self.repo.guardar_lote(self.lote([a, b, c]), self.usuario))
+        self.assertFalse(self.repo.guardar_lote(self.lote([a, b, c]), self.usuario))
+        ultimas = self.repo.cargar_senales()
+        self.assertEqual(len(ultimas), 2)
+        pe = next(i for i in ultimas if i['pais'] == 'PE')
+        self.assertEqual(pe['valor'], 40)
+        historia = self.repo.cargar_historia(a['clave_serie'])
+        self.assertEqual([p['valor'] for p in historia], [20, 40])
+        self.assertEqual(self.repo.cargar()['temas'], [])
+
+    def test_correccion_preserva_auditoria_y_elige_ultima_revision(self):
+        a = self.senal()
+        self.repo.guardar_lote(self.lote([a]), self.usuario)
+        corregida = self.senal(valor=25)
+        self.repo.guardar_lote(self.lote([corregida]), self.usuario)
+        self.assertEqual(self.repo.cargar_historia(a['clave_serie'])[0]['valor'], 25)
+        with self.conexion.cursor() as cursor:
+            cursor.execute('SELECT COUNT(*) FROM public.radar_senales')
+            self.assertEqual(cursor.fetchone()[0], 2)
+
+    def test_migracion_nueva_idempotente(self):
+        sql = (Path(__file__).resolve().parents[1] / 'database/radar_datos_reales.sql').read_text(encoding='utf-8')
+        sql = re.sub(r'^\s*(?:BEGIN|COMMIT);\s*$', '', sql, flags=re.MULTILINE)
+        with self.conexion.cursor() as cursor:
+            cursor.execute(sql)
+        self.assertEqual(self.repo.cargar_senales(), [])
+
+    def test_error_en_punto_no_deja_lote_parcial(self):
+        import copy
+        a = self.senal()
+        invalida = copy.deepcopy(self.senal('2025-01-02'))
+        invalida['observado_en'] = 'no-es-fecha'
+        # Savepoint de prueba: producción usa el contexto transaccional de conexión.
+        with self.assertRaises(psycopg.Error):
+            with self.conexion.transaction():
+                self.repo.guardar_lote(self.lote([a, invalida]), self.usuario)
+        with self.conexion.cursor() as cursor:
+            cursor.execute('SELECT COUNT(*) FROM public.radar_lotes')
+            self.assertEqual(cursor.fetchone()[0], 0)
+        self.assertEqual(self.repo.cargar_senales(), [])
 
 
 if __name__ == '__main__':
