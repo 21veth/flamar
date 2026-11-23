@@ -4,7 +4,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QPainter
 from PySide6.QtWidgets import QStyle, QStyledItemDelegate
 
-from views.dashboard_theme import DASHBOARD_PALETTE
+from views.app_theme import APP_PALETTE as DASHBOARD_PALETTE
 
 
 COLORS = {

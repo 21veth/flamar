@@ -19,24 +19,25 @@ from views.import_catalog_view import CatalogImportTab
 from views.import_inventory_view import InventoryImportTab
 from views.import_sales_view import SalesImportTab
 from views.import_suppliers_view import SuppliersImportTab
+from views.app_theme import zeyver_color, zeyver_stylesheet
 from views.dashboard_theme import DASHBOARD_PALETTE, DASHBOARD_STYLES
 from views.tabla_paginada import TablaPaginada
 
 
-INK = '#09142f'
-MUTED = '#60708f'
-PURPLE = '#5133f5'
-GREEN = '#08a66c'
-RED = '#ef334e'
-ORANGE = '#ff9815'
-BLUE = '#268df0'
-BORDER = '#dfe5ee'
+INK = zeyver_color('#09142f')
+MUTED = zeyver_color('#60708f')
+PURPLE = zeyver_color('#5133f5')
+GREEN = zeyver_color('#08a66c')
+RED = zeyver_color('#ef334e')
+ORANGE = zeyver_color('#ff9815')
+BLUE = zeyver_color('#268df0')
+BORDER = zeyver_color('#dfe5ee')
 
 
 class IconBadge(QWidget):
     """Small painted icon tile used where the reference uses line icons."""
 
-    def __init__(self, kind='bars', color=PURPLE, background='#f0edff', size=58, parent=None):
+    def __init__(self, kind='bars', color=PURPLE, background=zeyver_color('#f0edff'), size=58, parent=None):
         super().__init__(parent)
         self.kind, self.color, self.background = kind, QColor(color), QColor(background)
         self.setFixedSize(size, size)
@@ -127,7 +128,7 @@ class SalesChart(QWidget):
             p.drawText(QRectF(0,y-8,38,16), Qt.AlignRight|Qt.AlignVCenter, '0' if i == 0 else f'{i*10}K')
             p.setPen(QPen(QColor(self.colors.get('grid', '#e7ecf4')),1)); p.drawLine(area.left(),int(y),area.right(),int(y)); p.setPen(QColor(muted))
         labels = ('Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic')
-        slot = area.width()/12; grad = QLinearGradient(0,area.top(),0,area.bottom()); grad.setColorAt(0,QColor(self.colors.get('chart_start', '#6749fa'))); grad.setColorAt(1,QColor(self.colors.get('chart_end', '#765cf6')))
+        slot = area.width()/12; grad = QLinearGradient(0,area.top(),0,area.bottom()); grad.setColorAt(0,QColor(self.colors.get('chart_start', '#ff8a24'))); grad.setColorAt(1,QColor(self.colors.get('chart_end', '#ff4f12')))
         points=[]
         for i,(value,label) in enumerate(zip(self.values,labels)):
             x=area.left()+slot*i+slot/2; bh=value/40*area.height()
@@ -138,14 +139,14 @@ class SalesChart(QWidget):
         tip_x=area.left()+slot*8+slot/2; tip_y=max(2,area.bottom()-self.values[8]/40*area.height()-49); tip=QRectF(tip_x-32,tip_y,64,42)
         p.setPen(QPen(QColor(self.colors.get('border', '#d8e0ec')),1)); p.setBrush(QColor(self.colors.get('surface', '#ffffff'))); p.drawRoundedRect(tip,6,6); p.setPen(QColor(muted)); p.setFont(QFont('Segoe UI',7)); p.drawText(tip.adjusted(0,3,0,-20),Qt.AlignCenter,'Sep 2025' if self.line else 'Ago 2025'); p.setPen(QColor(self.colors.get('ink', INK))); p.setFont(QFont('Segoe UI',9,QFont.Bold)); p.drawText(tip.adjusted(0,18,0,-2),Qt.AlignCenter,'$ 32,400')
         if self.line:
-            p.setPen(QPen(QColor(self.colors.get('line', '#4c28f4')),2)); p.setBrush(Qt.NoBrush); p.drawPolyline(points)
+            p.setPen(QPen(QColor(self.colors.get('line', '#60656b')),2)); p.setBrush(Qt.NoBrush); p.drawPolyline(points)
             for pt in points:
-                p.setBrush(QColor(self.colors.get('surface', '#ffffff'))); p.setPen(QPen(QColor(self.colors.get('line', '#4c28f4')),2)); p.drawEllipse(pt,4,4)
+                p.setBrush(QColor(self.colors.get('surface', '#ffffff'))); p.setPen(QPen(QColor(self.colors.get('line', '#60656b')),2)); p.drawEllipse(pt,4,4)
 
 
 class Donut(QWidget):
     values = (35,22,15,12,10,6)
-    colors = ('#5133f5','#3598ed','#ef5c99','#ff8b22','#ffbd31','#98a6bf')
+    colors = ('#ff4f12','#60656b','#ffae66','#969ca4','#c1c5cb','#454b53')
     labels = ('Ropa','Tecnología','Colección K-pop','Decoración','Papelería','Accesorios')
 
     def __init__(self, total='25,430', parent=None, palette=None):
@@ -237,11 +238,11 @@ class BaseContentView(QWidget):
             for c,val in enumerate(row):
                 item=QTableWidgetItem(str(val)); item.setTextAlignment(Qt.AlignVCenter|(Qt.AlignLeft if c in (0,1) else Qt.AlignCenter)); table.setItem(r,c,item)
                 if str(val) in ('Crítico','↓ 12%','↓ 8%'):
-                    item.setForeground(QColor(RED)); item.setBackground(QColor('#ffeaed'))
+                    item.setForeground(QColor(RED)); item.setBackground(QColor('#fff0f0'))
                 elif str(val) in ('Bajo','Alto','Medio'):
-                    item.setForeground(QColor('#d46b00')); item.setBackground(QColor('#fff1df'))
+                    item.setForeground(QColor('#a85a12')); item.setBackground(QColor('#fff2e4'))
                 elif str(val)=='Óptimo' or str(val).startswith('↑'):
-                    item.setForeground(QColor(GREEN)); item.setBackground(QColor('#e5f8ef'))
+                    item.setForeground(QColor(GREEN)); item.setBackground(QColor('#e5f4eb'))
         return table
 
 
@@ -431,7 +432,7 @@ class SalesView(BaseContentView):
         card=QFrame(objectName='insight'); card.setFixedHeight(82); lay=QHBoxLayout(card); lay.addWidget(IconBadge('megaphone','#ffffff',PURPLE,48)); tx=QVBoxLayout(); tx.addWidget(QLabel('Insight de ventas',objectName='insightTitle')); copy=QLabel('Las ventas crecieron un 12% respecto al mes anterior, impulsadas principalmente por la temporada de Halloween (+33%) y la categoría de Ropa, que representa el 35% del total\nde ventas. Se recomienda aumentar inventario de productos de decoración y ropa para la próxima temporada.',objectName='muted'); copy.setWordWrap(True); tx.addWidget(copy); lay.addLayout(tx,1); lay.addWidget(QPushButton('Ver recomendaciones',objectName='secondaryButton')); return card
 
 
-STYLES='''
+STYLES=zeyver_stylesheet('''
 QWidget#corePage,QWidget#coreContent,QScrollArea#coreScroll{background:#f7f9fd;color:#09142f;font-family:"Segoe UI Variable","Segoe UI";border:none}
 QScrollBar:vertical{background:#eef2f7;width:8px}QScrollBar::handle:vertical{background:#cbd4e1;border-radius:4px;min-height:40px}QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0}
 QLabel#pageTitle{font-size:30px;font-weight:800;color:#08132d}QLabel#greeting{font-size:20px;font-weight:750;color:#0d172d}QLabel#subtitle,QLabel#muted,QLabel#smallMuted{color:#60708f;font-size:11px}QLabel#smallMuted{font-size:9px}
@@ -441,11 +442,11 @@ QLabel#goodChip{background:#e4f8ee;color:#079557;border-radius:6px;padding:4px 7
 QPushButton#primaryButton{background:#5133f5;color:white;border:none;border-radius:7px;padding:10px 18px;font-size:11px;font-weight:700}QPushButton#primaryButton:hover{background:#4125dd}QPushButton#secondaryButton{background:white;color:#4e31ed;border:1px solid #bdb4ff;border-radius:7px;padding:9px 17px;font-size:11px;font-weight:650}QPushButton#linkButton{background:transparent;color:#4e31ed;border:none;font-size:11px;font-weight:650;padding:4px}
 QFrame#miniRow{background:white;border:1px solid #e5eaf1;border-radius:8px}QLabel#thumb{background:#f3f1ff;border-radius:8px;font-size:20px;padding:7px}
 QTableWidget#coreTable{background:white;color:#273754;border:1px solid #e0e6ef;border-radius:7px;font-size:10px;selection-background-color:#f2efff}QTableWidget#coreTable::item{border-bottom:1px solid #e5eaf1;padding:3px}QTableWidget#coreTable QHeaderView::section{background:#f7f9fc;color:#12203a;border:none;border-bottom:1px solid #dfe5ee;padding:6px 3px;font-size:10px;font-weight:700}
-QFrame#typeActive{background:white;border:1px solid #654cff;border-radius:8px}QFrame#dropZone{background:#fbfbff;border:1px dashed #6045ff;border-radius:10px}QLabel#uploadTitle{color:#111827;font-size:15px;font-weight:750}QLabel#stepActive{background:#5133f5;color:white;border-radius:18px;font-weight:700}QLabel#step{background:white;color:#172541;border:1px solid #bdc8d8;border-radius:18px;font-weight:700}QLabel#stepTitleActive{color:#5133f5;font-size:11px;font-weight:700}QFrame#line{background:#bdc8d8;border:none}QFrame#detailRow{border:none;border-bottom:1px solid #e3e8ef}QLabel#detailIcon{background:#f0edff;color:#5133f5;border-radius:7px;font-weight:700}QLabel#detailValue{font-size:10px;color:#111a2d;font-weight:650}
+QFrame#typeActive{background:white;border:1px solid #654cff;border-radius:8px}QFrame#dropZone{background:#fff0e5;border:3px dashed #ff8a24;border-radius:10px}QLabel#uploadTitle{color:#111827;font-size:15px;font-weight:750}QLabel#stepActive{background:#5133f5;color:white;border-radius:18px;font-weight:700}QLabel#step{background:white;color:#172541;border:1px solid #bdc8d8;border-radius:18px;font-weight:700}QLabel#stepTitleActive{color:#5133f5;font-size:11px;font-weight:700}QFrame#line{background:#bdc8d8;border:none}QFrame#detailRow{border:none;border-bottom:1px solid #e3e8ef}QLabel#detailIcon{background:#f0edff;color:#5133f5;border-radius:7px;font-weight:700}QLabel#detailValue{font-size:10px;color:#111a2d;font-weight:650}
 QLineEdit,QComboBox{background:white;color:#263752;border:1px solid #d4deea;border-radius:6px;padding:8px;font-size:10px;min-height:16px}QComboBox::drop-down{border:none;width:18px}QLabel#fieldLabel{font-size:9px;font-weight:700;color:#111a2d}QPushButton#pageButton,QPushButton#pageActive{min-width:25px;max-width:25px;min-height:25px;background:white;color:#354460;border:1px solid #d8e0ea;border-radius:5px;font-size:9px}QPushButton#pageActive{background:#5133f5;color:white;border:none}
 QFrame#insight{background:#f6f3ff;border:1px solid #ded7ff;border-radius:9px}QLabel#insightTitle{color:#5031ed;font-size:12px;font-weight:750}
 QFrame#typeCard{background:white;border:1px solid #dfe5ee;border-radius:8px}QFrame#typeCard:hover{background:#fbfaff;border-color:#c9c0ff}QFrame#typeCard[active="true"]{background:white;border:1px solid #654cff}QLabel#typeTitleActive{color:#5133f5;font-size:11px;font-weight:750}
-'''
+''')
 
 
 __all__=['DashboardView','ImportDataView','ProductsView','SalesView']

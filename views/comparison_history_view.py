@@ -19,11 +19,12 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from views.app_theme import zeyver_stylesheet
 from views.import_shared import IMPORT_STYLES
 from views.import_results_view import RESULT_STYLES
 
 
-COMPARISON_DETAIL_STYLES = '''
+COMPARISON_DETAIL_STYLES = zeyver_stylesheet('''
 QDialog#ComparisonDetailDialog { background:#ffffff; color:#09142f; font-family:"Segoe UI Variable","Segoe UI"; }
 QLabel#comparisonTitle { color:#09142f; font-size:18px; font-weight:800; }
 QLabel#comparisonSubtitle { color:#60708f; font-size:10px; }
@@ -40,7 +41,7 @@ QTableWidget#comparisonDetailTable::item { border-bottom:1px solid #e5eaf1; padd
 QTableWidget#comparisonDetailTable QHeaderView::section { background:#f7f9fc; color:#12203a; border:none; border-bottom:1px solid #dfe5ee; padding:7px 5px; font-size:10px; font-weight:800; }
 QLineEdit#comparisonEditInput, QComboBox#comparisonEditInput, QPlainTextEdit#comparisonEditInput { background:#ffffff; color:#12203a; border:1px solid #dfe5ee; border-radius:6px; padding:7px 9px; font-size:11px; }
 QLabel#comparisonEditLabel { color:#34435e; font-size:11px; font-weight:700; }
-'''
+''')
 
 
 
@@ -156,11 +157,8 @@ class ComparisonDetailDialog(QDialog):
 
         acciones = QHBoxLayout()
         acciones.addStretch()
-        repetir = QPushButton('Repetir comparación', objectName='comparisonPrimary')
-        repetir.clicked.connect(self._repetir)
         cerrar = QPushButton('Cerrar', objectName='comparisonSecondary')
         cerrar.clicked.connect(self.accept)
-        acciones.addWidget(repetir)
         acciones.addWidget(cerrar)
         layout.addLayout(acciones)
 

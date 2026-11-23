@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
 )
 
 from controllers.login_controller import LoginController
+from views.app_theme import zeyver_stylesheet
 from views.home_view import HomeView
 from views.recuperacion_dialog import RecuperacionDialog
 from views.ui_components import BrandWidget, LogoMark
@@ -51,20 +52,20 @@ class HeroPanel(QFrame):
             features.addWidget(card)
         layout.addLayout(features)
         layout.addStretch()
-        layout.addWidget(QLabel('FLAMAR ANALYTICS  ·  2026', objectName='heroFooter'))
+        layout.addWidget(QLabel('ZEYVER  ·  SALE PORQUE SALE  ·  2026', objectName='heroFooter'))
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         gradient = QLinearGradient(0, 0, self.width(), self.height())
-        gradient.setColorAt(0, QColor('#061a36'))
-        gradient.setColorAt(.58, QColor('#10245a'))
-        gradient.setColorAt(1, QColor('#3f24bc'))
+        gradient.setColorAt(0, QColor('#080808'))
+        gradient.setColorAt(.58, QColor('#30353b'))
+        gradient.setColorAt(1, QColor('#ff4f12'))
         painter.fillRect(self.rect(), gradient)
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor(119, 91, 255, 35))
+        painter.setBrush(QColor(255, 212, 59, 45))
         painter.drawEllipse(QPointF(self.width() * .90, self.height() * .12), 210, 210)
-        painter.setBrush(QColor(30, 174, 238, 22))
+        painter.setBrush(QColor(255, 138, 36, 35))
         painter.drawEllipse(QPointF(self.width() * .10, self.height() * .85), 175, 175)
         super().paintEvent(event)
 
@@ -72,7 +73,7 @@ class HeroPanel(QFrame):
 class LoginView(QWidget):
     def __init__(self, auth_service=None):
         super().__init__()
-        self.setWindowTitle('Flamar Analytics - Iniciar sesión')
+        self.setWindowTitle('Zeyver · Iniciar sesión')
         self.setMinimumSize(720, 560)
         self.resize(1280, 760)
         self.home_view = None
@@ -103,7 +104,7 @@ class LoginView(QWidget):
         mark = LogoMark()
         mark.setFixedSize(42, 42)
         brand_layout.addWidget(mark)
-        brand_layout.addWidget(QLabel('FLAMAR', objectName='mobileBrandName'))
+        brand_layout.addWidget(QLabel('ZEYVER', objectName='mobileBrandName'))
         brand_layout.addStretch()
         self.mobile_brand.hide()
         outer.addWidget(self.mobile_brand)
@@ -154,7 +155,7 @@ class LoginView(QWidget):
         form.addLayout(options)
         form.addSpacing(12)
 
-        login = QPushButton('Entrar a Flamar  →', objectName='loginButton')
+        login = QPushButton('Entrar a Zeyver  →', objectName='loginButton')
         login.setCursor(Qt.PointingHandCursor)
         login.clicked.connect(self.handle_login)
         self.login_button = login
@@ -166,7 +167,7 @@ class LoginView(QWidget):
         form.addWidget(security)
         outer.addWidget(card, alignment=Qt.AlignHCenter)
         outer.addStretch()
-        outer.addWidget(QLabel('© 2026 Flamar Analytics', objectName='copyright'), alignment=Qt.AlignHCenter)
+        outer.addWidget(QLabel('© 2026 Zeyver Analytics', objectName='copyright'), alignment=Qt.AlignHCenter)
         return panel
 
     def resizeEvent(self, event):
@@ -250,7 +251,7 @@ class LoginView(QWidget):
 
     @staticmethod
     def _styles():
-        return '''
+        return zeyver_stylesheet('''
             QWidget { color: #0b1739; font-family: "Segoe UI Variable", "Segoe UI"; }
             QFrame#hero { border: none; }
             QLabel#heroEyebrow { color: #8f80ff; font-size: 11px; font-weight: 800; letter-spacing: 2px; }
@@ -278,7 +279,7 @@ class LoginView(QWidget):
             QLabel#security, QLabel#copyright { color: #8a96a8; font-size: 9px; }
             QWidget#mobileBrand { background: transparent; }
             QLabel#mobileBrandName { color: #17234a; font-size: 20px; font-weight: 850; letter-spacing: 1px; }
-        '''
+        ''')
 
 
 __all__ = ['LoginView']

@@ -13,7 +13,7 @@ from views.core_inventory_views import (
     DashboardView, Donut, IconBadge, LineIcon, ProductsView, SalesChart, SalesView, STYLES,
 )
 from views.dashboard_theme import (
-    DASHBOARD_PALETTE, DASHBOARD_SHELL_STYLES, DASHBOARD_STYLES, LOGO_PATH, ZeyverLogo,
+    DASHBOARD_PALETTE, DASHBOARD_STYLES, LOGO_PATH, ZeyverLogo,
 )
 from views.home_view import HomeView, NavButton
 from views.ui_components import BrandWidget
@@ -58,17 +58,18 @@ class DashboardUiTests(unittest.TestCase):
         for icon in view.findChildren(IconBadge):
             self.assertNotEqual(icon.color.name(), '#5133f5')
 
-    def test_ventas_e_inventario_conservan_estilos_originales(self):
+    def test_ventas_e_inventario_usan_la_paleta_zeyver(self):
         for view_class in (SalesView, ProductsView):
             view = self.vista(view_class)
             self.assertEqual(view.styleSheet(), STYLES)
+            self.assertNotIn('#5133f5', view.styleSheet())
             self.assertEqual(view.theme, {})
         chart = SalesChart()
         donut = Donut()
         self.addCleanup(chart.deleteLater)
         self.addCleanup(donut.deleteLater)
         self.assertEqual(chart.colors, {})
-        self.assertEqual(donut.colors[0], '#5133f5')
+        self.assertEqual(donut.colors[0], '#ff4f12')
 
     def test_barras_menores_suaves_y_maximo_en_naranja(self):
         chart = SalesChart(palette=DASHBOARD_PALETTE)
@@ -133,7 +134,7 @@ class DashboardUiTests(unittest.TestCase):
             self.assertFalse(logo.grab().isNull())
             self.assertIn('Zeyver', logo.accessibleName())
 
-    def test_navegacion_cambia_tema_solo_en_dashboard(self):
+    def test_navegacion_mantiene_un_solo_tema_zeyver(self):
         home = self.home()
         self.assertTrue(home.dashboard_active)
         self.assertFalse(home.dashboard_brand.isHidden())
@@ -141,16 +142,16 @@ class DashboardUiTests(unittest.TestCase):
         self.assertIn('Zeyver', home.windowTitle())
         for key in ('ventas', 'productos', 'dashboard'):
             home.nav_buttons[key].click()
-            active = key == 'dashboard'
-            self.assertEqual(home.dashboard_active, active)
+            self.assertTrue(home.dashboard_active)
+            self.assertTrue(home.zeyver_active)
             self.assertEqual(home.pages.currentIndex(), home.page_indexes[key])
-            self.assertEqual(home.styleSheet(), home._styles() + (DASHBOARD_SHELL_STYLES if active else ''))
+            self.assertEqual(home.styleSheet(), home._styles())
             for button in (*home.nav_buttons.values(), home.intelligence_button, home.logout_button):
-                self.assertEqual(button.dashboard_theme, active)
-            self.assertEqual(home.dashboard_brand.isHidden(), not active)
-            self.assertEqual(home.brand.isHidden(), active)
+                self.assertTrue(button.dashboard_theme)
+            self.assertFalse(home.dashboard_brand.isHidden())
+            self.assertTrue(home.brand.isHidden())
         self.assertEqual(home.page_views['dashboard'].backgroundBrush().color().name(), '#f1f2f4')
-        self.assertEqual(home.page_views['ventas'].backgroundBrush().color().name(), '#f6f9fe')
+        self.assertEqual(home.page_views['ventas'].backgroundBrush().color().name(), '#f1f2f4')
 
     def test_logo_en_barra_contraida_y_cuenta_solo_en_cabecera(self):
         home = self.home()
@@ -161,8 +162,8 @@ class DashboardUiTests(unittest.TestCase):
         self.assertIsNone(home.sidebar.findChild(QLabel, 'accountName'))
         self.assertEqual(home.page_views['dashboard'].page.findChild(QLabel, 'accountName').text(), self.sesion.usuario)
         home._show_page('ventas')
-        self.assertFalse(home.compact_logo.isHidden())
-        self.assertTrue(home.dashboard_compact_logo.isHidden())
+        self.assertTrue(home.compact_logo.isHidden())
+        self.assertFalse(home.dashboard_compact_logo.isHidden())
         home._show_page('dashboard')
         home._set_sidebar_collapsed(False)
         self.assertFalse(home.dashboard_brand.isHidden())
@@ -189,9 +190,9 @@ class DashboardUiTests(unittest.TestCase):
             self.assertLess(image.pixelColor(int(width * 0.8), 5).green(), 140)
             # Each column keeps its color from top to bottom.
             self.assertEqual(image.pixelColor(width - 11, 5), image.pixelColor(width - 11, 32))
+        active_color = button.grab().toImage().pixelColor(44, 5).name()
         button.dashboard_theme = False
-        image = button.grab().toImage()
-        self.assertEqual(image.pixelColor(44, 5).name(), '#5527f5')
+        self.assertEqual(button.grab().toImage().pixelColor(44, 5).name(), active_color)
 
     def test_dashboard_renderiza_en_pantalla_grande_y_pequena(self):
         home = self.home()
@@ -205,10 +206,12 @@ class DashboardUiTests(unittest.TestCase):
             page = home.page_views['dashboard'].page
             self.assertLessEqual(page.content.width(), page.width())
 
-    def test_marca_compartida_no_cambia_en_login(self):
+    def test_marca_zeyver_es_la_misma_en_login_y_en_el_shell(self):
         brand = BrandWidget()
         self.addCleanup(brand.deleteLater)
-        self.assertIn('FLAMAR', [label.text() for label in brand.findChildren(QLabel)])
+        labels = [label.text() for label in brand.findChildren(QLabel)]
+        self.assertIn('ZEYVER', labels)
+        self.assertNotIn('FLAMAR', labels)
 
 
 if __name__ == '__main__':

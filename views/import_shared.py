@@ -13,6 +13,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
+from views.app_theme import zeyver_color, zeyver_stylesheet
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -32,14 +33,14 @@ from PySide6.QtWidgets import (
 )
 
 
-INK = '#09142f'
-MUTED = '#60708f'
-PURPLE = '#5133f5'
-GREEN = '#08a66c'
-RED = '#ef334e'
-ORANGE = '#ff9815'
-BLUE = '#268df0'
-BORDER = '#dfe5ee'
+INK = zeyver_color('#09142f')
+MUTED = zeyver_color('#60708f')
+PURPLE = zeyver_color('#5133f5')
+GREEN = zeyver_color('#08a66c')
+RED = zeyver_color('#ef334e')
+ORANGE = zeyver_color('#ff9815')
+BLUE = zeyver_color('#268df0')
+BORDER = zeyver_color('#dfe5ee')
 
 ALLOWED_EXTENSIONS = {'.csv', '.xlsx', '.xls'}
 MAX_FILE_BYTES = 50 * 1024 * 1024
@@ -881,7 +882,7 @@ class ImportTab(QWidget):
 # Estilos
 # ---------------------------------------------------------------------------
 
-IMPORT_STYLES = '''
+IMPORT_STYLES = zeyver_stylesheet('''
 QWidget#importTab { background: transparent; }
 QLabel#importTabTitle { color: #08132d; font-size: 20px; font-weight: 800; }
 QFrame#importMetric { background: white; border: 1px solid #dfe5ee; border-radius: 9px; }
@@ -889,7 +890,7 @@ QLabel#importMetricIcon { border-radius: 22px; font-size: 18px; font-weight: 800
 QLabel#importMetricValue { font-size: 19px; font-weight: 800; }
 QLabel#importMetricLabel { color: #34435e; font-size: 10px; font-weight: 700; }
 QLabel#dropIcon { color: #5133f5; font-size: 40px; font-weight: 700; }
-QFrame#dropZone:hover { background: #f7f5ff; border-color: #5133f5; }
+QFrame#dropZone:hover { background: #fff0e5; border-color: #ff4f12; }
 QLabel#idleChip { background: #eef2f7; color: #60708f; border-radius: 6px; padding: 4px 7px; font-size: 10px; font-weight: 700; }
 QPushButton#dangerButton { background: white; color: #e62e45; border: 1px solid #f2b8c0; border-radius: 7px; padding: 9px 17px; font-size: 11px; font-weight: 650; }
 QPushButton#dangerButton:hover { background: #fff1f3; }
@@ -901,7 +902,7 @@ QTableWidget#importTable::item { border-bottom: 1px solid #e5eaf1; padding: 3px;
 QTableWidget#importTable QHeaderView::section { background: #f7f9fc; color: #12203a; border: none; border-bottom: 1px solid #dfe5ee; padding: 6px 3px; font-size: 10px; font-weight: 700; }
 QLabel#importNote { color: #4e31ed; background: #f3f0ff; border: 1px solid #ded7ff; border-radius: 7px; padding: 8px 10px; font-size: 10px; }
 QComboBox#importFilter { background: white; color: #263752; border: 1px solid #d4deea; border-radius: 6px; padding: 6px 8px; font-size: 10px; min-height: 16px; }
-'''
+''')
 
 __all__ = [
     'ImportFileError',

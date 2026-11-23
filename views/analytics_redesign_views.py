@@ -22,20 +22,21 @@ from PySide6.QtWidgets import (
 )
 
 
+from views.app_theme import zeyver_color, zeyver_stylesheet
 from views.tabla_paginada import TablaPaginada
 
 
-INK = '#081433'
-MUTED = '#60708f'
-PURPLE = '#5425f5'
-GREEN = '#10b875'
-ORANGE = '#ff9f16'
-BLUE = '#2380f5'
-RED = '#ee4161'
-BORDER = '#dce4f0'
+INK = zeyver_color('#081433')
+MUTED = zeyver_color('#60708f')
+PURPLE = zeyver_color('#5425f5')
+GREEN = zeyver_color('#10b875')
+ORANGE = zeyver_color('#ff9f16')
+BLUE = zeyver_color('#2380f5')
+RED = zeyver_color('#ee4161')
+BORDER = zeyver_color('#dce4f0')
 TINTS = {
-    PURPLE: '#f0edff', GREEN: '#eaf9f2', ORANGE: '#fff5e7',
-    BLUE: '#edf5ff', RED: '#fff0f3',
+    PURPLE: '#fff0e5', GREEN: '#e5f4eb', ORANGE: '#fff2e4',
+    BLUE: '#fff0e5', RED: '#fff0f0',
 }
 
 
@@ -597,7 +598,7 @@ def _table(rows, headers, minimum_height):
     return table
 
 
-_STYLES = '''
+_STYLES = zeyver_stylesheet('''
     QWidget#analyticsPage, QWidget#pageContent, QScrollArea#pageScroll {
         background: #f7f9fd; color: #081433; font-family: "Sans Serif";
     }
@@ -648,7 +649,7 @@ _STYLES = '''
     QFrame#insightTile { background: white; border: none; border-radius: 7px; }
     QLabel#tileValue { color: #5425f5; font-size: 14px; font-weight: 800; }
     QFrame#season { border: 1px solid #e0e6ef; border-radius: 8px; }
-'''
+''')
 
 
 __all__ = ['SegmentationView', 'PurchasePatternsView', 'DemandView']

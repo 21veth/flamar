@@ -159,7 +159,7 @@ class ComparacionRepository:
         finally:
             conexion.close()
 
-    def listar(self, id_usuario, busqueda='', categoria='', proveedor='', estado=''):
+    def listar(self, id_usuario, busqueda='', categoria='', proveedor='', fecha=''):
         patron = f'%{busqueda.strip()}%'
         filas = self._consultar(
             '''
@@ -191,7 +191,7 @@ class ComparacionRepository:
                    OR COALESCE(c.proveedor_recomendado_nombre, pr.nombre, '') ILIKE %s)
               AND (%s = '' OR COALESCE(c.tipo_productos, '') = %s)
               AND (%s = '' OR COALESCE(c.proveedor_recomendado_nombre, pr.nombre, '') = %s)
-              AND (%s = '' OR c.estado = %s)
+              AND (%s = '' OR c.fecha_creacion::date = NULLIF(%s, '')::date)
             GROUP BY c.id_comparacion, pr.nombre
             ORDER BY c.fecha_creacion DESC, c.id_comparacion DESC
             ''',
@@ -205,8 +205,8 @@ class ComparacionRepository:
                 categoria or '',
                 proveedor or '',
                 proveedor or '',
-                estado or '',
-                estado or '',
+                fecha or '',
+                fecha or '',
             ),
         )
         return [

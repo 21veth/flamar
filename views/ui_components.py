@@ -2,14 +2,16 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPen
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
+from views.app_theme import zeyver_color, zeyver_stylesheet
 
-INK = '#0b1739'
-MUTED = '#64748b'
-PURPLE = '#553cff'
-BLUE = '#1479ed'
-GREEN = '#08a66c'
-ORANGE = '#ff8a16'
-RED = '#f3484a'
+
+INK = zeyver_color('#0b1739')
+MUTED = zeyver_color('#64748b')
+PURPLE = zeyver_color('#553cff')
+BLUE = zeyver_color('#1479ed')
+GREEN = zeyver_color('#08a66c')
+ORANGE = zeyver_color('#ff8a16')
+RED = zeyver_color('#f3484a')
 
 
 class BrandWidget(QWidget):
@@ -27,10 +29,10 @@ class BrandWidget(QWidget):
         text = QVBoxLayout()
         text.setContentsMargins(0, 3, 0, 3)
         text.setSpacing(0)
-        title = QLabel('FLAMAR')
+        title = QLabel('ZEYVER')
         title.setStyleSheet('color: white; font-size: 20px; font-weight: 800; letter-spacing: 1px;')
-        caption = QLabel('A N A L Y T I C S')
-        caption.setStyleSheet('color: #7c6cff; font-size: 9px; font-weight: 800;')
+        caption = QLabel('S A L E   P O R Q U E   S A L E')
+        caption.setStyleSheet(zeyver_stylesheet('color: #7c6cff; font-size: 9px; font-weight: 800;'))
         text.addWidget(title)
         text.addWidget(caption)
         layout.addLayout(text)
@@ -42,7 +44,7 @@ class LogoMark(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         heights = (9, 18, 29, 40)
-        colors = ('#21b7ee', '#338ff5', '#665cf7', '#7b4cff')
+        colors = ('#ffd43b', '#ff8a24', '#ff6212', '#ff4f12')
         baseline = self.height() - 7
         for index, (height, color) in enumerate(zip(heights, colors)):
             rect = QRectF(4 + index * 10, baseline - height, 6, height)
@@ -75,8 +77,8 @@ class BarChart(QWidget):
         bar_width = min(22, slot * 0.44)
         maximum = max(self.values)
         gradient = QLinearGradient(0, area.top(), 0, area.bottom())
-        gradient.setColorAt(0, QColor('#6d56ff'))
-        gradient.setColorAt(1, QColor('#5140ed'))
+        gradient.setColorAt(0, QColor('#ff8a24'))
+        gradient.setColorAt(1, QColor('#ff4f12'))
         for index, value in enumerate(self.values):
             height = value / maximum * area.height() * .92
             x = area.left() + slot * index + (slot - bar_width) / 2
@@ -89,7 +91,7 @@ class BarChart(QWidget):
 
 
 class DonutChart(QWidget):
-    COLORS = (PURPLE, BLUE, '#1fb378', ORANGE, RED)
+    COLORS = (PURPLE, BLUE, GREEN, ORANGE, RED)
 
     def __init__(self, values, labels, parent=None):
         super().__init__(parent)

@@ -63,10 +63,10 @@ class ComparacionesController(QObject):
             self.eliminada,
         )
 
-    def listar(self, id_usuario, busqueda='', categoria='', proveedor='', estado=''):
+    def listar(self, id_usuario, busqueda='', categoria='', proveedor='', fecha=''):
         return self._ejecutar(
             self._servicio.listar,
-            (id_usuario, busqueda, categoria, proveedor, estado),
+            (id_usuario, busqueda, categoria, proveedor, fecha),
             self.listado,
         )
 

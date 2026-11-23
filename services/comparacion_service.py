@@ -236,13 +236,13 @@ class ComparacionService:
         eliminadas = self._repositorio.eliminar(id_comparacion, id_usuario)
         return id_comparacion if eliminadas else None
 
-    def listar(self, id_usuario, busqueda='', categoria='', proveedor='', estado=''):
+    def listar(self, id_usuario, busqueda='', categoria='', proveedor='', fecha=''):
         return self._repositorio.listar(
             id_usuario,
             busqueda=busqueda,
             categoria=categoria,
             proveedor=proveedor,
-            estado=estado,
+            fecha=fecha,
         )
 
     def obtener_detalle(self, id_comparacion, id_usuario=None):

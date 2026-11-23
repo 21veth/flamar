@@ -28,21 +28,22 @@ from PySide6.QtWidgets import (
 )
 
 
+from views.app_theme import zeyver_color, zeyver_stylesheet
 from views.tabla_paginada import TablaPaginada
 
 
-INK = "#081433"
-MUTED = "#5f7097"
-PURPLE = "#5525f5"
-BLUE = "#2f80ed"
-GREEN = "#09a868"
-RED = "#ef334e"
+INK = zeyver_color("#081433")
+MUTED = zeyver_color("#5f7097")
+PURPLE = zeyver_color("#5525f5")
+BLUE = zeyver_color("#2f80ed")
+GREEN = zeyver_color("#09a868")
+RED = zeyver_color("#ef334e")
 ORANGE = "#f59e0b"
 BG = "#f6f9fe"
 BORDER = "#dde5f1"
 
 
-BASE_STYLE = """
+BASE_STYLE = zeyver_stylesheet("""
     QWidget#page, QWidget#canvas, QScrollArea#scroll { background: #f6f9fe; color: #081433; font-family: "Segoe UI Variable", "Segoe UI"; }
     QScrollArea#scroll { border: 0; }
     QScrollBar:vertical { width: 8px; background: #eef3fa; }
@@ -63,7 +64,7 @@ BASE_STYLE = """
     QPushButton#primary:hover { background: #4518df; }
     QPushButton#outline { color: #5525f5; background: white; border: 1px solid #704fff; border-radius: 7px; padding: 9px 15px; }
     QPushButton#outline:hover { background: #f4f1ff; }
-"""
+""")
 
 
 def _label(text, name=None, wrap=False):
@@ -108,7 +109,7 @@ class _Page(QWidget):
         super().__init__(parent)
         self.sesion = sesion
         self.setObjectName("page")
-        self.setStyleSheet(BASE_STYLE + self.extra_style())
+        self.setStyleSheet(BASE_STYLE + zeyver_stylesheet(self.extra_style()))
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         scroll = QScrollArea(objectName="scroll")

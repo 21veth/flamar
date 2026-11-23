@@ -10,7 +10,7 @@ from views.login_view import LoginView
 
 def main():
     app = QApplication(sys.argv)
-    app.setApplicationName('Flamar Analytics')
+    app.setApplicationName('Zeyver Analytics')
     app.setStyle('Fusion')
     
     login_window = LoginView()

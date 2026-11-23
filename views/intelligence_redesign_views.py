@@ -20,18 +20,19 @@ from PySide6.QtWidgets import (
 )
 
 
+from views.app_theme import zeyver_color, zeyver_stylesheet
 from views.tabla_paginada import TablaPaginada
 
 
-INK = "#0b1647"
-TEXT = "#243568"
-MUTED = "#6473a1"
-PURPLE = "#5b32f5"
-BLUE = "#2478f3"
-GREEN = "#0a9f67"
-PINK = "#f12678"
-ORANGE = "#f27b15"
-BORDER = "#dfe4f2"
+INK = zeyver_color("#0b1647")
+TEXT = zeyver_color("#243568")
+MUTED = zeyver_color("#6473a1")
+PURPLE = zeyver_color("#5b32f5")
+BLUE = zeyver_color("#2478f3")
+GREEN = zeyver_color("#0a9f67")
+PINK = zeyver_color("#f12678")
+ORANGE = zeyver_color("#f27b15")
+BORDER = zeyver_color("#dfe4f2")
 
 
 def _label(text, name=None, wrap=False, alignment=None):
@@ -57,7 +58,7 @@ def _badge(text, foreground, background, width=None):
     return badge
 
 
-def _icon(text, color=PURPLE, background="#eee9ff", size=44, font_size=22):
+def _icon(text, color=PURPLE, background=zeyver_color("#eee9ff"), size=44, font_size=22):
     icon = QLabel(text)
     icon.setAlignment(Qt.AlignCenter)
     icon.setFixedSize(size, size)
@@ -356,7 +357,7 @@ class _BaseIntelligenceView(QWidget):
         picture = QLabel(icon)
         picture.setAlignment(Qt.AlignCenter)
         picture.setFixedHeight(45)
-        picture.setStyleSheet("font-size:31px; border:0; background:#fbfcff; border-radius:6px;")
+        picture.setStyleSheet(f"font-size:31px; border:0; background:{zeyver_color('#fbfcff')}; border-radius:6px;")
         layout.addWidget(picture)
         layout.addWidget(_label(title, "productTitle", True, Qt.AlignCenter))
         layout.addWidget(_label(subtitle, "productSubtitle", True, Qt.AlignCenter))
@@ -368,7 +369,7 @@ class _BaseIntelligenceView(QWidget):
 
     @staticmethod
     def _styles():
-        return """
+        return zeyver_stylesheet("""
             QWidget#intelligencePage, QWidget#pageContent, QScrollArea#pageScroll {
                 background:#f9faff; color:#0b1647; font-family:"Segoe UI Variable", "Segoe UI";
             }
@@ -399,7 +400,7 @@ class _BaseIntelligenceView(QWidget):
             QScrollBar:vertical { width:8px; background:#f1f3f9; }
             QScrollBar::handle:vertical { background:#cbd2e2; border-radius:4px; min-height:40px; }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height:0; }
-        """
+        """)
 
 
 class CalendarView(_BaseIntelligenceView):

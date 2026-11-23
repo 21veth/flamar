@@ -205,7 +205,16 @@ def test_historial_esta_al_lado_de_nueva_comparacion(aplicacion):
     assert tab.historial_busqueda is not None
     assert tab.historial_categoria is not None
     assert tab.historial_proveedor is not None
-    assert tab.historial_estado is not None
+    assert tab.historial_fecha.specialValueText() == 'Todas las fechas'
+    assert tab.historial_fecha.date() == tab.historial_fecha.minimumDate()
+    assert not hasattr(tab, 'historial_estado')
+    assert tab.historial_estado_texto.parent() is None
+
+    opciones = [tab.category_combo.itemText(i) for i in range(tab.category_combo.count())]
+    assert tab.category_combo.isEditable()
+    assert {'Limpieza', 'Dulces', 'Bebidas', 'Snacks', 'Ropa', 'Juguetes'} <= set(opciones)
+    tab.category_combo.setCurrentText('Artesanías')
+    assert tab.category_combo.currentText() == 'Artesanías'
 
 
 def test_tabla_historial_muestra_dto(aplicacion):
@@ -235,7 +244,7 @@ def test_tabla_historial_muestra_dto(aplicacion):
     assert encabezados == [
         'Comparación',
         'Categoría principal',
-        'Proveedores',
+        'Proveedor con mejor precio',
         'Fecha',
         'Hora',
         'Productos',
@@ -244,7 +253,7 @@ def test_tabla_historial_muestra_dto(aplicacion):
     ]
     assert tab.history_table.item(0, 0).text() == 'Productos de limpieza'
     assert tab.history_table.item(0, 1).text() == 'Limpieza'
-    assert tab.history_table.item(0, 2).text() == 'HigieneTotal · CleanMax'
+    assert tab.history_table.item(0, 2).text() == 'HigieneTotal'
     assert tab.history_table.item(0, 3).text() == '19/11/2026'
     assert tab.history_table.item(0, 4).text() == '10:30'
     assert tab.history_table.item(0, 5).text() == '30'
@@ -296,7 +305,7 @@ def test_acciones_historial_son_iconos(aplicacion, monkeypatch):
     ]
 
 
-def test_detalle_muestra_recomendacion_y_permite_repetir(aplicacion):
+def test_detalle_muestra_recomendacion_y_tabla_guardada(aplicacion):
     comparacion = ComparacionGuardada(
         id_comparacion=12,
         nombre='Productos de limpieza',
@@ -325,14 +334,6 @@ def test_detalle_muestra_recomendacion_y_permite_repetir(aplicacion):
         ],
     )
     dialogo = ComparisonDetailDialog(detalle)
-    repetidos = []
-    dialogo.repetir.connect(repetidos.append)
-
-    boton = next(
-        boton for boton in dialogo.findChildren(QPushButton)
-        if boton.objectName() == 'comparisonPrimary'
-    )
-    boton.click()
 
     etiquetas = [
         etiqueta.text() for etiqueta in dialogo.findChildren(QLabel)
@@ -341,7 +342,10 @@ def test_detalle_muestra_recomendacion_y_permite_repetir(aplicacion):
     assert dialogo.tabla.rowCount() == 1
     assert 'HigieneTotal' in etiquetas
     assert 'Menor costo total entre los proveedores individuales.' in etiquetas
-    assert repetidos == [12]
+    assert not any(
+        boton.objectName() == 'comparisonPrimary'
+        for boton in dialogo.findChildren(QPushButton)
+    )
 
 
 def test_preparar_repeticion_conserva_nombre_y_categoria(aplicacion):
@@ -507,6 +511,24 @@ def test_repositorio_listar_agrupa_por_comparacion(monkeypatch):
     grupo = consultas[0].split('GROUP BY', 1)[1]
     assert 'prd.codigo' not in grupo
     assert 'prd.nombre' not in grupo
+
+
+def test_repositorio_listar_filtra_por_fecha(monkeypatch):
+    repositorio = ComparacionRepository()
+    consultas = []
+
+    def consultar(sql, parametros):
+        consultas.append((sql, parametros))
+        return []
+
+    monkeypatch.setattr(repositorio, '_consultar', consultar)
+
+    repositorio.listar(1, fecha='2026-11-19')
+
+    sql, parametros = consultas[0]
+    assert 'c.fecha_creacion::date = NULLIF(%s, \'\')::date' in sql
+    assert parametros[-2:] == ('2026-11-19', '2026-11-19')
+    assert 'c.estado = %s' not in sql
 
 
 def test_confirmar_borrado_usa_dialogo_blanco(aplicacion, monkeypatch):

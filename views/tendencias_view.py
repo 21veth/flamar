@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 from config.radar import CATEGORIAS_RADAR
 from controllers.tendencias_controller import TendenciasController
 from services.fuentes_tendencias import PAISES, url_segura
+from views.app_theme import zeyver_stylesheet
 from views.intelligence_redesign_views import _BaseIntelligenceView
 from views.radar_importacion_dialog import ImportacionRadarDialog, confirmar_importacion
 from views.radar_historia_dialog import HistoriaRadarDialog
@@ -53,7 +54,7 @@ class TrendsView(_BaseIntelligenceView):
         self.controller.actualizado.connect(self._recibir)
         self.controller.fallo.connect(self._error)
         self.controller.ocupado.connect(self._cambiar_ocupado)
-        self.setStyleSheet(self._styles() + '''
+        self.setStyleSheet(self._styles() + zeyver_stylesheet('''
             QFrame#radarHero { background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #151945,stop:1 #5036c8); border-radius:18px; }
             QLabel#heroEyebrow { color:#c2b9ff; font-size:10px; font-weight:700; }
             QLabel#heroTitle { color:white; font-size:29px; font-weight:800; }
@@ -77,7 +78,7 @@ class TrendsView(_BaseIntelligenceView):
             QPushButton#helpLink { color:#6c7692; background:transparent; border:0; font-size:10px; text-align:left; padding:4px; }
             QProgressBar { background:#e9e3ff; border:0; border-radius:3px; max-height:4px; }
             QProgressBar::chunk { background:#7452f6; }
-        ''')
+        '''))
 
     def _top_bar(self):
         bar = QFrame(objectName='topBar')

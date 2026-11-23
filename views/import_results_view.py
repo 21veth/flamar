@@ -18,10 +18,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from views.app_theme import zeyver_stylesheet
 from views.import_shared import BLUE, IMPORT_STYLES, ORANGE
 
 
-RESULT_STYLES = '''
+RESULT_STYLES = zeyver_stylesheet('''
 QDialog#SavedOffersDialog { background:#ffffff; color:#09142f; font-family:"Segoe UI Variable","Segoe UI"; }
 QLabel#resultSuccessChip { background:#e8f8f1; color:#087a51; border-radius:6px; padding:5px 9px; font-size:10px; font-weight:800; }
 QLabel#resultErrorChip { background:#fdecea; color:#b42318; border-radius:6px; padding:5px 9px; font-size:10px; font-weight:800; }
@@ -47,7 +48,7 @@ QTableWidget#savedOffersTable::item { border-bottom:1px solid #e5eaf1; padding:6
 QTableWidget#savedOffersTable QHeaderView::section { background:#f7f9fc; color:#12203a; border:none; border-bottom:1px solid #dfe5ee; padding:8px 6px; font-size:10px; font-weight:800; }
 QPushButton#resultPrimary { background:#5133f5; color:#ffffff; border:none; border-radius:7px; padding:9px 18px; font-size:11px; font-weight:800; min-width:96px; }
 QPushButton#resultPrimary:hover { background:#4025c9; }
-'''
+''')
 
 
 def _icono_pixmap(tipo, color, size=27):

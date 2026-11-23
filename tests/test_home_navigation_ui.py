@@ -256,24 +256,26 @@ class HomeNavigationUiTests(unittest.TestCase):
             with self.assertRaises(PermissionError):
                 home._show_page('usuarios')
 
-    def test_gestion_usuarios_extiende_marca_zeyver_sin_recolorear_otros_modulos(self):
+    def test_marca_zeyver_es_unica_en_todos_los_modulos(self):
         home = self.home()
-        home.nav_buttons['usuarios'].click()
-        self.assertTrue(home.zeyver_active)
-        self.assertFalse(home.dashboard_active)
-        self.assertIn(DASHBOARD_SHELL_STYLES, home.styleSheet())
-        self.assertIn('Zeyver', home.windowTitle())
-        self.assertIsInstance(home.page_views['usuarios'], NativePageView)
-        self.assertIsNone(home.page_views['usuarios'].page.graphicsProxyWidget())
-        self.assertTrue(home.nav_buttons['usuarios'].dashboard_theme)
-        self.assertTrue(home.brand.isHidden())
-        self.assertFalse(home.dashboard_brand.isHidden())
-        home._set_sidebar_collapsed(True)
-        self.assertFalse(home.dashboard_compact_logo.isHidden())
-        home.nav_buttons['ventas'].click()
-        self.assertFalse(home.zeyver_active)
+        for key in ('dashboard', 'usuarios', 'ventas'):
+            with self.subTest(key=key):
+                home.nav_buttons[key].click()
+                self.assertTrue(home.zeyver_active)
+                self.assertTrue(home.dashboard_active)
+                self.assertIn(DASHBOARD_SHELL_STYLES, home.styleSheet())
+                self.assertIn('Zeyver', home.windowTitle())
+                self.assertIsInstance(home.page_views['usuarios'], NativePageView)
+                self.assertIsNone(home.page_views['usuarios'].page.graphicsProxyWidget())
+                for button in (*home.nav_buttons.values(), home.intelligence_button, home.logout_button):
+                    self.assertTrue(button.dashboard_theme)
+                self.assertTrue(home.brand.isHidden())
+                self.assertFalse(home.dashboard_brand.isHidden())
+                self.assertTrue(home.compact_logo.isHidden())
+                home._set_sidebar_collapsed(True)
+                self.assertFalse(home.dashboard_compact_logo.isHidden())
+                home._set_sidebar_collapsed(False)
         self.assertEqual(home.styleSheet(), home._styles())
-        self.assertFalse(home.compact_logo.isHidden())
 
 
 if __name__ == '__main__':

@@ -104,13 +104,20 @@ class UsuariosUiTests(unittest.TestCase):
         self.view.buscar.setText('ot')
         self.view.buscar.setText('otro')
         self.assertEqual(self.controller.llamadas, [])
-        QTest.qWait(350)
+        for _ in range(20):
+            if self.controller.llamadas:
+                break
+            QTest.qWait(50)
         self.assertEqual(self.controller.llamadas, [('listar', dict(buscar='otro', rol=None, activo=None))])
         self.controller.completar({'accion': 'listar', 'usuarios': [self.otro]})
         self.assertEqual(self.view.tabla.rowCount(), 1)
         self.assertEqual(self.view.metric_values['total'].text(), '1')
         self.view.buscar.clear()
-        QTest.qWait(350)
+        llamadas_antes = len(self.controller.llamadas)
+        for _ in range(20):
+            if len(self.controller.llamadas) > llamadas_antes:
+                break
+            QTest.qWait(50)
         self.assertEqual(self.controller.llamadas[-1], ('listar', dict(buscar='', rol=None, activo=None)))
         self.controller.completar({'accion': 'listar', 'usuarios': [self.admin, self.otro]})
         self.assertEqual(self.view.tabla.rowCount(), 2)

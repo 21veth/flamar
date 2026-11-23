@@ -7,12 +7,14 @@ from collections import Counter
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from PySide6.QtCore import QRectF, Qt, Signal
+from PySide6.QtCore import QDate, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
+from views.app_theme import zeyver_color, zeyver_stylesheet
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
     QComboBox,
+    QDateEdit,
     QDialog,
     QFileDialog,
     QFrame,
@@ -63,9 +65,9 @@ from views.import_results_view import (
 )
 
 
-INK = '#09142f'
-MUTED = '#60708f'
-BORDER = '#dfe5ee'
+INK = zeyver_color('#09142f')
+MUTED = zeyver_color('#60708f')
+BORDER = zeyver_color('#dfe5ee')
 
 SUPPLIER_EXTENSIONS = {'.xlsx'}
 MAX_PROVEEDORES = 10
@@ -127,7 +129,7 @@ def mensaje_confirmacion(nombres):
 def _estilo_dialogo(dialogo, ancho, alto):
     dialogo.setModal(True)
     dialogo.setMinimumSize(ancho, alto)
-    dialogo.setStyleSheet(
+    dialogo.setStyleSheet(zeyver_stylesheet(
         'QDialog{background:#ffffff;color:#09142f;'
         'font-family:"Segoe UI";font-size:12px;}'
         'QLabel{color:#09142f;font-size:12px;}'
@@ -135,7 +137,7 @@ def _estilo_dialogo(dialogo, ancho, alto):
         'QPushButton{background:#ffffff;color:#5133f5;border:1px solid #c9bcff;'
         'border-radius:7px;padding:9px 16px;min-width:95px;font-weight:700;}'
         'QPushButton#aceptar{background:#5133f5;color:#ffffff;border:none;}'
-    )
+    ))
 
 
 def _icono_accion(tipo, color):
@@ -179,7 +181,7 @@ ICONOS_ACCION_HISTORIAL = {}
 def _icono_accion_historial(tipo):
     if tipo not in ICONOS_ACCION_HISTORIAL:
         colores = {
-            'mostrar': '#5133f5',
+            'mostrar': zeyver_color('#5133f5'),
             'editar': '#0b7a75',
             'borrar': '#c8384a',
         }
@@ -267,7 +269,7 @@ def confirmar_borrado(nombre, parent=None):
     return dialogo.exec() == QDialog.Accepted
 
 
-SUPPLIER_STYLES = '''
+SUPPLIER_STYLES = zeyver_stylesheet('''
 QLabel#supplierTitle { color: #09142f; font-size: 20px; font-weight: 800; }
 QLabel#supplierSubtitle { color: #60708f; font-size: 11px; }
 QPushButton#segment { background: #eef2f8; color: #4c5b76; border: 0; border-radius: 7px; padding: 9px 16px; font-size: 11px; font-weight: 700; }
@@ -276,12 +278,12 @@ QFrame#supplierCard { background: white; border: 1px solid #dfe5ee; border-radiu
 QLabel#cardTitle { color: #09142f; font-size: 13px; font-weight: 800; padding: 0px; margin: 0px; }
 QLabel#cardHint { color: #60708f; font-size: 10px; }
 
-QFrame#supplierDrop:hover { background: #f7f5ff; border-color: #5133f5; }
+QFrame#supplierDrop:hover { background: #fff0e5; border-color: #ff4f12; }
 QLabel#dropTitle { color: #09142f; font-size: 15px; font-weight: 800; }
 QTableWidget#supplierTable { background: white; color: #273754; border: none; border-radius: 0px; font-size: 10px; }
 QTableWidget#supplierTable::item { border-bottom: 1px solid #e5eaf1; padding: 4px; }
 QTableWidget#supplierTable QHeaderView::section { background: #f7f9fc; color: #12203a; border: none; border-bottom: 1px solid #dfe5ee; padding: 7px 5px; font-size: 10px; font-weight: 700; }
-QLineEdit#supplierInput, QComboBox#supplierCombo { background: white; color: #263752; border: 1px solid #d4deea; border-radius: 6px; padding: 7px 9px; font-size: 10px; }
+QLineEdit#supplierInput, QComboBox#supplierCombo, QDateEdit#supplierCombo { background: white; color: #263752; border: 1px solid #d4deea; border-radius: 6px; padding: 7px 9px; font-size: 10px; }
 QComboBox#supplierCombo::drop-down { border: none; width: 22px; subcontrol-origin: padding; subcontrol-position: center right; }
 QComboBox#supplierCombo QAbstractItemView { background: #ffffff; color: #263752; border: 1px solid #dfe5ee; border-radius: 6px; outline: 0; padding: 4px; selection-background-color: #ede9fe; selection-color: #5133f5; }
 QComboBox#supplierCombo QAbstractItemView::item { padding: 6px 10px; min-height: 24px; border-radius: 4px; }
@@ -317,7 +319,7 @@ QTabWidget#resultTabs QTabBar::tab { background: #f7f9fc; color: #60708f; border
 QTabWidget#resultTabs QTabBar::tab:selected { background: #ffffff; color: #5133f5; border-color: #dfe5ee; border-bottom: 1px solid #ffffff; margin-bottom: -1px; font-weight: 700; }
 QTabWidget#resultTabs QTabBar::tab:hover:!selected { color: #5133f5; background: #fbfaff; }
 QTabWidget#resultTabs QTabBar::tab:!selected { margin-top: 2px; }
-'''
+''')
 
 
 def _money(value):
@@ -437,7 +439,7 @@ class SupplierDropZone(QFrame):
         self.setCursor(Qt.PointingHandCursor)
         self.setMinimumHeight(210)
         self.setStyleSheet(
-            'QFrame#supplierDrop { background: #fbfaff; border: 1.5px dashed #c9bcff; border-radius: 9px; }'
+            'QFrame#supplierDrop { background: #fff0e5; border: 3px dashed #ff8a24; border-radius: 10px; }'
         )
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 12, 18, 12)
@@ -553,6 +555,7 @@ class SuppliersImportTab(QWidget):
         self._refresh_history()
         self._actualizar_estado_carga()
         self._go_step(1)
+        self._set_segment(0)
         self._sincronizar_historial_inicial()
         self._recargar_historial()
 
@@ -726,9 +729,16 @@ class SuppliersImportTab(QWidget):
 
         self.name_edit = QLineEdit('Productos de limpieza', objectName='supplierInput')
         self.category_combo = QComboBox(objectName='supplierCombo')
-        self.category_combo.addItems(('Limpieza', 'Dulces', 'Bebidas', 'Otros'))
+        self.category_combo.setEditable(True)
         self.category_combo.setView(QListView())
-        self.category_combo.setMaxVisibleItems(8)
+        self.category_combo.addItems((
+            'Limpieza', 'Dulces', 'Bebidas', 'Snacks', 'Ropa', 'Juguetes',
+            'Alimentos', 'Cuidado personal', 'Hogar', 'Ferretería', 'Papelería',
+            'Deportes', 'Electrónica', 'Mascotas', 'Farmacia', 'Bebés',
+            'Calzado', 'Accesorios', 'Jardinería', 'Automotriz', 'Otros',
+        ))
+        self.category_combo.setCurrentText('Limpieza')
+        self.category_combo.setMaxVisibleItems(10)
         for label, widget in (
             ('Nombre de la comparación', self.name_edit),
             ('Categoría principal', self.category_combo),
@@ -1091,19 +1101,22 @@ class SuppliersImportTab(QWidget):
         self.historial_proveedor.setView(QListView())
         self.historial_proveedor.addItem('Todos los proveedores')
         self.historial_proveedor.currentTextChanged.connect(self._recargar_historial)
-        self.historial_estado = QComboBox(objectName='supplierCombo')
-        self.historial_estado.setView(QListView())
-        self.historial_estado.addItems(('Todos los estados', 'completada', 'borrador'))
-        self.historial_estado.currentTextChanged.connect(self._recargar_historial)
+        self.historial_fecha = QDateEdit(objectName='supplierCombo')
+        self.historial_fecha.setCalendarPopup(True)
+        self.historial_fecha.setDisplayFormat('dd/MM/yyyy')
+        self.historial_fecha.setMinimumDate(QDate(2000, 1, 1))
+        self.historial_fecha.setSpecialValueText('Todas las fechas')
+        self.historial_fecha.setDate(self.historial_fecha.minimumDate())
+        self.historial_fecha.dateChanged.connect(self._recargar_historial)
         filtros.addWidget(self.historial_busqueda, 2)
         filtros.addWidget(self.historial_categoria, 1)
         filtros.addWidget(self.historial_proveedor, 1)
-        filtros.addWidget(self.historial_estado, 1)
+        filtros.addWidget(self.historial_fecha, 1)
         card_layout.addLayout(filtros)
 
         self.history_table = _make_table(
             (
-                'Comparación', 'Categoría principal', 'Proveedores', 'Fecha',
+                'Comparación', 'Categoría principal', 'Proveedor con mejor precio', 'Fecha',
                 'Hora', 'Productos', 'Ahorro', 'Acciones',
             ),
             320,
@@ -1111,11 +1124,6 @@ class SuppliersImportTab(QWidget):
         )
         card_layout.addWidget(self.history_table)
         self.historial_estado_texto = QLabel('', objectName='cardHint')
-        card_layout.addWidget(self.historial_estado_texto)
-        card_layout.addWidget(QLabel(
-            'Al abrir una comparación se muestra su resultado; al repetirla se carga una nueva cotización sin borrar la anterior.',
-            objectName='cardHint',
-        ))
         layout.addWidget(card)
         return page
 
@@ -1893,7 +1901,7 @@ class SuppliersImportTab(QWidget):
         self.matrix_table.setRowCount(len(rows_data))
         for row, data in enumerate(rows_data):
             category = next(iter(data['offers'].values())).get('category', '')
-            self.matrix_table.setItem(row, 0, _fixed_item(_item(str(row + 1), foreground=MUTED)))
+            self.matrix_table.setItem(row, 0, _fixed_item(_item(str(row + 1), foreground=INK)))
             self.matrix_table.setItem(row, 1, _fixed_item(_item(
                 data['product'], Qt.AlignLeft, bold=True
             )))
@@ -1901,7 +1909,7 @@ class SuppliersImportTab(QWidget):
             for offset, provider in enumerate(self.provider_names, start=3):
                 offer = data['offers'].get(provider)
                 if offer is None:
-                    cell = _fixed_item(_item('—', foreground='#aab4c4'))
+                    cell = _fixed_item(_item('—', foreground=MUTED))
                 else:
                     best = offer['price'] == data['best_price']
                     tooltip = (
@@ -1915,7 +1923,7 @@ class SuppliersImportTab(QWidget):
                     cell = _fixed_item(_item(
                         _money(offer['price']),
                         bold=best,
-                        foreground=GREEN if best else INK,
+                        foreground=INK,
                         background='#e8f8f1' if best else 'white',
                         tooltip=tooltip,
                     ))
@@ -1923,10 +1931,10 @@ class SuppliersImportTab(QWidget):
             best_column = 3 + provider_count
             reco_column = best_column + 1
             self.matrix_table.setItem(row, best_column, _fixed_item(_item(
-                _money(data['best_price']), foreground=GREEN, bold=True
+                _money(data['best_price']), foreground=INK, bold=True
             )))
             self.matrix_table.setItem(row, reco_column, _fixed_item(_item(
-                data['best_provider'], foreground=PURPLE, background='#f0edff', bold=True
+                data['best_provider'], foreground=INK, background='#f7f8f9', bold=True
             )))
         header = self.matrix_table.horizontalHeader()
         header.setMinimumSectionSize(80)
@@ -2262,18 +2270,23 @@ class SuppliersImportTab(QWidget):
         if hasattr(self, 'historial_count'):
             self.historial_count.setText(f'{len(self.comparisons)} guardadas')
 
+    def _fecha_filtro_historial(self):
+        fecha = self.historial_fecha.date()
+        if fecha == self.historial_fecha.minimumDate():
+            return ''
+        return fecha.toString('yyyy-MM-dd')
+
     def _recargar_historial(self):
         if not hasattr(self, 'historial_busqueda'):
             return
         categoria = self.historial_categoria.currentText()
         proveedor = self.historial_proveedor.currentText()
-        estado = self.historial_estado.currentText()
         self._comparaciones_controller.listar(
             self._id_usuario(),
             busqueda=self.historial_busqueda.text(),
             categoria='' if categoria.startswith('Todas') else categoria,
             proveedor='' if proveedor.startswith('Todos') else proveedor,
-            estado='' if estado.startswith('Todos') else estado,
+            fecha=self._fecha_filtro_historial(),
         )
 
     def _al_listar_comparaciones(self, comparaciones):
@@ -2282,7 +2295,7 @@ class SuppliersImportTab(QWidget):
             not self.historial_busqueda.text().strip()
             and self.historial_categoria.currentText().startswith('Todas')
             and self.historial_proveedor.currentText().startswith('Todos')
-            and self.historial_estado.currentText().startswith('Todos')
+            and not self._fecha_filtro_historial()
         )
         if sin_filtros:
             self._actualizar_filtros_historial()
@@ -2298,7 +2311,7 @@ class SuppliersImportTab(QWidget):
         actuales = (
             self.historial_categoria.currentText(),
             self.historial_proveedor.currentText(),
-            self.historial_estado.currentText(),
+            self.historial_fecha.date(),
         )
         categorias = sorted({
             str(self._valor_comparacion(item, 'tipo_productos') or '')
@@ -2313,7 +2326,6 @@ class SuppliersImportTab(QWidget):
         for combo, opciones, texto in (
             (self.historial_categoria, categorias, 'Todas las categorías'),
             (self.historial_proveedor, proveedores, 'Todos los proveedores'),
-            (self.historial_estado, ('completada', 'borrador'), 'Todos los estados'),
         ):
             anterior = combo.currentText()
             combo.blockSignals(True)
@@ -2323,12 +2335,17 @@ class SuppliersImportTab(QWidget):
             indice = combo.findText(anterior)
             combo.setCurrentIndex(indice if indice >= 0 else 0)
             combo.blockSignals(False)
+        cambio = False
         for combo, anterior in zip(
-            (self.historial_categoria, self.historial_proveedor, self.historial_estado),
-            actuales,
+            (self.historial_categoria, self.historial_proveedor),
+            actuales[:2],
         ):
             if combo.currentText() != anterior:
-                self._recargar_historial()
+                cambio = True
+        if self.historial_fecha.date() != actuales[2]:
+            cambio = True
+        if cambio:
+            self._recargar_historial()
 
     def _guardar_comparacion_actual(self, decision):
         id_usuario = self._id_usuario()
@@ -2340,7 +2357,7 @@ class SuppliersImportTab(QWidget):
         self._comparacion_guardada_ids = clave
         self._comparaciones_controller.guardar(
             self.name_edit.text().strip() or 'Productos de limpieza',
-            self.category_combo.currentText(),
+            self.category_combo.currentText().strip(),
             id_usuario,
             self._ids_importacion_actuales,
             decision,
@@ -2404,7 +2421,7 @@ class SuppliersImportTab(QWidget):
             values = (
                 self._valor_comparacion(comparison, 'nombre', '-'),
                 self._valor_comparacion(comparison, 'tipo_productos', '-') or '-',
-                self._valor_comparacion(comparison, 'proveedores', '-') or '-',
+                self._valor_comparacion(comparison, 'proveedor_recomendado', '-') or '-',
                 fecha_texto,
                 hora_texto,
                 str(self._valor_comparacion(comparison, 'productos', 0)),
@@ -2531,6 +2548,8 @@ class SuppliersImportTab(QWidget):
         indice = self.category_combo.findText(categoria)
         if indice >= 0:
             self.category_combo.setCurrentIndex(indice)
+        elif categoria:
+            self.category_combo.setCurrentText(categoria)
         self.historial_estado_texto.setText(
             'Carga las cotizaciones actualizadas; la comparación anterior se conserva.'
         )
