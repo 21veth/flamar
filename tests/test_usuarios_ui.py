@@ -1,13 +1,16 @@
 import os
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import patch
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
-from PySide6.QtCore import QEventLoop, QObject, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QEventLoop, QObject, QPointF, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QEnterEvent, QImage
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QBoxLayout, QDialog, QFrame, QLineEdit, QMessageBox
+from PySide6.QtWidgets import QApplication, QBoxLayout, QDialog, QFrame, QLabel, QLineEdit, QMessageBox
 
 from controllers.usuarios_controller import UsuariosController
 from models.sesion_usuario import SesionUsuario
@@ -53,12 +56,23 @@ class UsuariosUiTests(unittest.TestCase):
         self.addCleanup(self.view.deleteLater)
         self.addCleanup(self.view.close)
         self.admin = dict(id_usuario=1, usuario='admin', rol='administrador', activo=True,
-                          ultimo_acceso=None, fecha_creacion=datetime.now(timezone.utc))
-        self.otro = dict(self.admin, id_usuario=2, usuario='otro', rol='trabajador', activo=False)
+                          ultimo_acceso=None, fecha_creacion=datetime.now(timezone.utc),
+                          correo='admin@example.com', telefono='+51900000001')
+        self.otro = dict(self.admin, id_usuario=2, usuario='otro', rol='trabajador', activo=False,
+                         correo='otro@example.com', telefono='+51900000002')
 
     def cargar(self):
         self.view.cargar()
         self.controller.completar({'accion': 'listar', 'usuarios': [self.admin, self.otro]})
+
+    def foto_prueba(self):
+        directory = TemporaryDirectory(prefix='zeyver-foto-ui-')
+        self.addCleanup(directory.cleanup)
+        path = Path(directory.name) / 'retrato.png'
+        image = QImage(180, 120, QImage.Format_RGB32)
+        image.fill(QColor('#458ac1'))
+        self.assertTrue(image.save(str(path)))
+        return str(path)
 
     def test_listado_real_vacio_y_seleccion(self):
         self.assertEqual(self.controller.llamadas, [])
@@ -153,21 +167,18 @@ class UsuariosUiTests(unittest.TestCase):
         self.controller.ocupado.emit(False)
         self.assertEqual(self.controller.llamadas[-1], ('listar', dict(buscar='otro', rol=None, activo=None)))
 
-    def test_crear_validar_confirmacion_y_conservar_formulario_en_error(self):
+    def test_crear_sin_campos_password_y_conservar_formulario_en_error(self):
         self.view.nuevo.click()
         dialogo = self.view._dialogo
         self.assertIsInstance(dialogo, UsuarioDialog)
-        self.assertEqual(dialogo.contrasena.echoMode(), QLineEdit.Password)
+        self.assertFalse(hasattr(dialogo, 'contrasena'))
         dialogo.usuario.setText('nuevo')
-        dialogo.contrasena.setText('NuevaClave123')
-        dialogo.confirmacion.setText('Distinta123')
-        dialogo.guardar_button.click()
-        self.assertEqual(self.controller.llamadas, [])
-        self.assertIn('no coinciden', dialogo.error.text())
-        dialogo.confirmacion.setText('NuevaClave123')
+        dialogo.correo.setText('nuevo@example.com')
+        dialogo.telefono.setText('+51987654321')
         dialogo.guardar_button.click()
         self.assertEqual(self.controller.llamadas[-1], ('crear', dict(
-            usuario='nuevo', rol='trabajador', activo=True, contrasena='NuevaClave123', correo='', telefono='')))
+            usuario='nuevo', rol='trabajador', activo=True,
+            correo='nuevo@example.com', telefono='+51987654321')))
         self.assertFalse(dialogo.guardar_button.isEnabled())
         self.controller.fallo.emit('Ese nombre de usuario ya existe.')
         self.controller.trabajando = False
@@ -177,21 +188,30 @@ class UsuariosUiTests(unittest.TestCase):
         self.assertIn('ya existe', dialogo.error.text())
         self.assertTrue(dialogo.guardar_button.isEnabled())
         dialogo.guardar_button.click()
-        self.controller.completar({'accion': 'crear', 'id_usuario': 3})
+        resultado = {'accion': 'crear', 'id_usuario': 3, 'usuario': 'nuevo', 'contrasena_temporal': '01234567'}
+        self.controller.completar(resultado)
         self.assertIsNone(self.view._dialogo)
-        self.assertEqual(dialogo.contrasena.text(), '')
+        credenciales = self.view._credenciales
+        self.assertEqual(credenciales.clave.text(), '01234567')
+        self.assertNotIn('contrasena_temporal', resultado)
+        credenciales.cerrar.click()
+        self.assertEqual(credenciales.clave.text(), '')
+        self.assertIsNone(self.view._credenciales)
         self.assertEqual(self.controller.llamadas[-1][0], 'listar')
 
-    def test_editar_estado_rol_y_password_opcional(self):
+    def test_editar_estado_y_rol_sin_campos_password(self):
         self.cargar()
         self.view.tabla.selectRow(1)
         self.view.editar.click()
         dialogo = self.view._dialogo
+        self.assertFalse(hasattr(dialogo, 'contrasena'))
+        self.assertFalse(hasattr(dialogo, 'confirmacion'))
         dialogo.rol.setCurrentIndex(dialogo.rol.findData('gerente'))
         dialogo.activo.setChecked(True)
         dialogo.guardar_button.click()
         self.assertEqual(self.controller.llamadas[-1], ('modificar', dict(
-            id_usuario=2, usuario='otro', rol='gerente', activo=True, contrasena='', correo='', telefono='')))
+            id_usuario=2, usuario='otro', rol='gerente', activo=True,
+            correo='otro@example.com', telefono='+51900000002')))
 
     def test_contactos_se_cargan_editan_y_muestran_sin_marcarlos_verificados(self):
         self.otro.update(correo='otro@example.com', telefono='+51987654321')
@@ -199,7 +219,7 @@ class UsuariosUiTests(unittest.TestCase):
         self.view.tabla.selectRow(1)
         self.assertEqual(self.view.perfil_correo.text(), 'otro@example.com')
         self.assertEqual(self.view.perfil_telefono.text(), '+51987654321')
-        self.assertIn('Correo: sin verificar', self.view.perfil_contacto_estado.text())
+        self.assertNotIn('Verificación', [label.text() for label in self.view.carnet.findChildren(QLabel)])
         self.view.editar.click()
         dialogo = self.view._dialogo
         self.assertEqual(dialogo.correo.text(), 'otro@example.com')
@@ -207,11 +227,16 @@ class UsuariosUiTests(unittest.TestCase):
         dialogo.correo.setText('cambio@example.com')
         dialogo.telefono.clear()
         dialogo.guardar_button.click()
+        self.assertIn('obligatorio', dialogo.error.text())
+        self.assertEqual(self.controller.llamadas[-1][0], 'listar')
+        dialogo.telefono.setText('+51987654322')
+        dialogo.guardar_button.click()
         self.assertEqual(self.controller.llamadas[-1][1]['correo'], 'cambio@example.com')
-        self.assertEqual(self.controller.llamadas[-1][1]['telefono'], '')
+        self.assertEqual(self.controller.llamadas[-1][1]['telefono'], '+51987654322')
         self.assertNotIn('correo_verificado_en', self.controller.llamadas[-1][1])
 
     def test_usuarios_antiguos_sin_contactos_se_pueden_editar(self):
+        self.otro.update(correo=None, telefono=None)
         self.cargar()
         self.view.tabla.selectRow(1)
         self.assertEqual(self.view.perfil_correo.text(), 'Sin registrar')
@@ -222,6 +247,82 @@ class UsuariosUiTests(unittest.TestCase):
         self.view._dialogo.establecer_ocupado(True)
         self.assertFalse(self.view._dialogo.correo.isEnabled())
         self.assertFalse(self.view._dialogo.telefono.isEnabled())
+
+    def test_formulario_bloquea_contactos_vacios_invalidos_y_omitidos(self):
+        self.view.nuevo.click()
+        dialogo = self.view._dialogo
+        dialogo.usuario.setText('nuevo')
+        for correo, telefono, mensaje in (
+            ('', '', 'correo'), ('nombre@example.com', '', 'teléfono'),
+            ('incorrecto', '+51987654321', 'correo'), ('nombre@example.com', '123', 'país'),
+        ):
+            dialogo.correo.setText(correo)
+            dialogo.telefono.setText(telefono)
+            dialogo.guardar_button.click()
+            self.assertIn(mensaje, dialogo.error.text())
+            self.assertEqual(self.controller.llamadas, [])
+
+    def test_agregar_foto_previsualiza_y_envia_el_archivo_solo_al_guardar(self):
+        path = self.foto_prueba()
+        self.view.nuevo.click()
+        dialogo = self.view._dialogo
+        with patch('views.usuarios_view.QFileDialog.getOpenFileName', return_value=(path, '')):
+            dialogo.elegir_foto.click()
+        self.assertFalse(dialogo.foto.imagen.isNull())
+        self.assertTrue(dialogo.quitar_foto.isEnabled())
+        self.assertEqual(self.controller.llamadas, [])
+        dialogo.usuario.setText('nuevo')
+        dialogo.correo.setText('nuevo@example.com')
+        dialogo.telefono.setText('+51987654321')
+        dialogo.guardar_button.click()
+        self.assertEqual(self.controller.llamadas[-1][1]['foto_perfil'], path)
+        self.assertFalse(dialogo.elegir_foto.isEnabled())
+        self.assertFalse(dialogo.quitar_foto.isEnabled())
+
+    def test_editar_conserva_reemplaza_y_quita_la_foto(self):
+        path = self.foto_prueba()
+        self.otro['foto_perfil'] = path
+        dialogo = UsuarioDialog(self.sesion, self.otro, self.view)
+        self.addCleanup(dialogo.deleteLater)
+        enviados = []
+        dialogo.guardar.connect(enviados.append)
+        self.assertFalse(dialogo.foto.imagen.isNull())
+        dialogo.guardar_button.click()
+        self.assertNotIn('foto_perfil', enviados[-1])
+        dialogo.quitar_foto.click()
+        self.assertTrue(dialogo.foto.imagen.isNull())
+        self.assertEqual(dialogo.foto.text(), 'O')
+        dialogo.guardar_button.click()
+        self.assertIsNone(enviados[-1]['foto_perfil'])
+        with patch('views.usuarios_view.QFileDialog.getOpenFileName', return_value=(path, '')):
+            dialogo.elegir_foto.click()
+        dialogo.guardar_button.click()
+        self.assertEqual(enviados[-1]['foto_perfil'], path)
+
+    def test_cancelar_o_elegir_imagen_invalida_conserva_foto_anterior(self):
+        path = self.foto_prueba()
+        self.otro['foto_perfil'] = path
+        dialogo = UsuarioDialog(self.sesion, self.otro, self.view)
+        self.addCleanup(dialogo.deleteLater)
+        for selection in ('', path + '.inexistente'):
+            with patch('views.usuarios_view.QFileDialog.getOpenFileName', return_value=(selection, '')):
+                dialogo.elegir_foto.click()
+            self.assertFalse(dialogo._foto_cambiada)
+            self.assertFalse(dialogo.foto.imagen.isNull())
+        self.assertFalse(dialogo.error.isHidden())
+
+    def test_foto_en_carnet_y_fallback_al_cambiar_usuario_o_archivo_perdido(self):
+        self.otro['foto_perfil'] = self.foto_prueba()
+        self.cargar()
+        self.view.tabla.selectRow(1)
+        self.assertFalse(self.view.perfil_avatar.imagen.isNull())
+        self.view.tabla.selectRow(0)
+        self.assertTrue(self.view.perfil_avatar.imagen.isNull())
+        self.otro['foto_perfil'] += '.inexistente'
+        self.view.tabla.item(1, 0).setData(Qt.UserRole, self.otro)
+        self.view.tabla.selectRow(1)
+        self.assertTrue(self.view.perfil_avatar.imagen.isNull())
+        self.assertEqual(self.view.perfil_avatar.text(), 'O')
 
     def test_formulario_contacto_tiene_scroll_y_botones_fuera_del_scroll(self):
         self.view.nuevo.click()
@@ -317,13 +418,14 @@ class UsuariosUiTests(unittest.TestCase):
         self.assertEqual(self.view._dialogo.styleSheet(), DIALOG_STYLE)
         self.assertTrue(self.view._dialogo.error.isHidden())
 
-    def test_sin_banner_y_formulario_indica_minimo_seis_caracteres(self):
+    def test_sin_banner_y_formulario_informa_clave_temporal_automatica(self):
         self.assertIsNone(self.view.findChild(QFrame, 'hero'))
         self.assertIs(self.view.content.itemAt(1).widget(), self.view.tabs)
         self.assertIs(self.view.cuentas.layout().itemAt(0).layout(), self.view.metric_grid)
         self.assertNotIn('QFrame#hero', USERS_STYLE)
         self.view.nuevo.click()
-        self.assertEqual(self.view._dialogo.contrasena.placeholderText(), '6 a 128 caracteres')
+        self.assertFalse(hasattr(self.view._dialogo, 'contrasena'))
+        self.assertTrue(any('8 dígitos' in label.text() for label in self.view._dialogo.findChildren(QLabel)))
 
     def test_solicitudes_integradas_en_otra_pestana_sin_ventana_independiente(self):
         self.assertEqual(self.view.tabs.count(), 2)
@@ -361,6 +463,86 @@ class UsuariosUiTests(unittest.TestCase):
         self.view.tabla.selectRow(1)
         self.assertIn('Tu cuenta', self.view.perfil_rol.text())
         self.assertFalse(self.view.eliminar.isEnabled())
+
+    def test_carnet_arranca_por_el_frente_y_los_botones_estan_fuera(self):
+        self.cargar()
+        carnet = self.view.carnet
+        self.assertFalse(carnet.back_visible)
+        self.assertEqual(carnet.codigo.text(), 'ACC-001')
+        self.assertTrue(carnet.isAncestorOf(self.view.perfil_nombre))
+        self.assertTrue(carnet.isAncestorOf(self.view.perfil_correo))
+        self.assertFalse(carnet.isAncestorOf(self.view.editar))
+        self.assertFalse(carnet.isAncestorOf(self.view.eliminar))
+        self.view.resize(1280, 945)
+        self.view.show()
+        self.app.processEvents()
+        self.assertGreaterEqual(self.view.editar.y(), carnet.y() + carnet.height())
+
+    def test_carnet_click_fija_el_reverso_y_segundo_click_vuelve(self):
+        self.cargar()
+        carnet = self.view.carnet
+        QTest.mouseClick(carnet, Qt.LeftButton)
+        QTest.qWait(480)
+        self.assertTrue(carnet.back_visible)
+        self.app.sendEvent(carnet, QEvent(QEvent.Leave))
+        QTest.qWait(480)
+        self.assertTrue(carnet.back_visible)
+        QTest.mouseClick(carnet, Qt.LeftButton)
+        QTest.qWait(480)
+        self.assertFalse(carnet.back_visible)
+
+    def test_carnet_hover_temporal_y_click_durante_hover_lo_fija(self):
+        self.cargar()
+        carnet = self.view.carnet
+        enter = lambda: self.app.sendEvent(carnet, QEnterEvent(QPointF(), QPointF(), QPointF()))
+        enter()
+        QTest.qWait(800)
+        self.assertTrue(carnet.back_visible)
+        self.app.sendEvent(carnet, QEvent(QEvent.Leave))
+        QTest.qWait(480)
+        self.assertFalse(carnet.back_visible)
+        enter()
+        QTest.qWait(800)
+        QTest.mouseClick(carnet, Qt.LeftButton)
+        self.app.sendEvent(carnet, QEvent(QEvent.Leave))
+        QTest.qWait(480)
+        self.assertTrue(carnet.back_visible)
+
+    def test_carnet_se_reinicia_al_cambiar_usuario_y_refleja_estado(self):
+        self.cargar()
+        carnet = self.view.carnet
+        QTest.keyClick(carnet, Qt.Key_Space)
+        QTest.qWait(480)
+        self.assertTrue(carnet.back_visible)
+        # Busy state changes must not turn over the selected person's card.
+        self.view._establecer_ocupado(True)
+        self.view._establecer_ocupado(False)
+        self.assertTrue(carnet.back_visible)
+        self.view.tabla.selectRow(1)
+        self.assertFalse(carnet.back_visible)
+        self.assertEqual(carnet.codigo.text(), 'ACC-002')
+        self.assertFalse(carnet.estado.property('active'))
+        QTest.keyClick(carnet, Qt.Key_Return)
+        QTest.qWait(480)
+        self.assertTrue(carnet.back_visible)
+        self.view.cargar()
+        self.controller.completar({'accion': 'listar', 'usuarios': []})
+        self.assertFalse(carnet.back_visible)
+        self.assertEqual(carnet.codigo.text(), 'ACC-—')
+
+    def test_carnet_renderiza_ambas_caras_en_tamanos_adaptables(self):
+        self.otro.update(usuario='Nombre de usuario bastante largo para el carnet',
+                         correo='contacto.largo.' * 8 + '@example.com', telefono='+51987654321')
+        self.cargar()
+        self.view.tabla.selectRow(1)
+        self.view.show()
+        for width in (900, 1280):
+            self.view.resize(width, 945)
+            self.app.processEvents()
+            for progress in (0.0, .25, .5, .75, 1.0):
+                self.view.carnet._animate(progress)
+                self.assertFalse(self.view.carnet.grab().isNull())
+        self.assertEqual(self.view.perfil_correo.text(), self.otro['correo'])
 
     def test_vacio_y_diseno_adaptable(self):
         self.cargar()

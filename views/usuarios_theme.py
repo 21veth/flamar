@@ -98,6 +98,7 @@ USERS_STYLE = f'''
     QLabel#accountName {{ font-size: 12px; font-weight: 750; }}
     QLabel#accountAvatar {{ background: #ffdbc2; color: #94350b; border-radius: 14px; font-weight: 800; font-size: 14px; }}
     QFrame#metric, QFrame#directory, QFrame#inspector {{ background: white; border: 1px solid {COLORS['border']}; border-radius: 16px; }}
+    QFrame#inspector {{ background: transparent; border: none; }}
     QFrame#metric[featured="true"] {{ background: qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #ff4f12,stop:0.75 #ff8a24,stop:1 #ffd43b); border: none; }}
     QLabel#metricValue {{ font-size: 30px; font-weight: 800; letter-spacing: -1px; }}
     QLabel#metricCaption {{ font-size: 11px; font-weight: 650; }}

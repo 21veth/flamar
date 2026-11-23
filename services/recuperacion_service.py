@@ -120,7 +120,7 @@ class RecuperacionService:
             if self.repo.estado(token_hash) != 'aprobada':
                 raise ValueError('La solicitud no está aprobada, ha caducado o ya no es válida. Consulta su estado o solicita otro código.')
             contrasena = datos.get('contrasena')
-            # Comparte la política de 6 a 128 caracteres con Gestión de usuarios.
+            # La recuperación conserva su política de 6 a 128 caracteres.
             validacion = UsuariosService(None, hasher=self.hasher)
             password_hash = validacion._password_hash(contrasena, obligatorio=True)
             if not self.repo.cambiar_password(token_hash, password_hash):

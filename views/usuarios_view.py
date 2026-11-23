@@ -1,7 +1,7 @@
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView, QBoxLayout, QCheckBox, QComboBox, QDialog, QFormLayout,
-    QFrame, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
+    QFileDialog, QFrame, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
     QMessageBox, QPushButton, QScrollArea, QTableWidget, QTableWidgetItem, QTabWidget,
     QVBoxLayout, QWidget,
 )
@@ -9,9 +9,13 @@ from PySide6.QtWidgets import (
 from controllers.usuarios_controller import UsuariosController
 from views.tabla_paginada import TablaPaginada
 from views.confirmacion_dialog import ConfirmacionDialog
-from services.usuarios_service import ROLES
+from services.usuarios_service import ROLES, UsuariosService
+from utils.fotos_perfil import leer_foto
+from views.avatar_usuario import AvatarUsuario
 from views.usuarios_theme import COLORS, DIALOG_STYLE, USERS_STYLE, UserDelegate, initials
 from views.solicitudes_recuperacion_view import SolicitudesRecuperacionView
+from views.ficha_acceso import FichaAcceso
+from views.password_dialogs import CredencialesDialog
 
 
 def _label(text, name=None, wrap=False):
@@ -35,6 +39,8 @@ class UsuarioDialog(QDialog):
     def __init__(self, sesion, registro=None, parent=None):
         super().__init__(parent)
         self.registro = registro
+        self._foto_cambiada = False
+        self._foto_seleccionada = registro.get('foto_perfil') if registro else None
         self._propio = registro is not None and registro['id_usuario'] == sesion.id_usuario
         self.setWindowTitle('Editar usuario' if registro else 'Nuevo usuario')
         self.setMinimumWidth(540)
@@ -65,17 +71,35 @@ class UsuarioDialog(QDialog):
         form.setSpacing(12)
         self.usuario = QLineEdit()
         self.usuario.setMaxLength(100)
+        photo_row = QHBoxLayout()
+        photo_row.setSpacing(16)
+        self.foto = AvatarUsuario(initials(registro['usuario']) if registro else '?')
+        self.foto.setFixedSize(84, 84)
+        self.foto.set_foto(self._foto_seleccionada)
+        photo_row.addWidget(self.foto)
+        photo_copy = QVBoxLayout()
+        photo_copy.addWidget(_label('Foto de perfil · Opcional', 'fieldCaption'))
+        photo_buttons = QHBoxLayout()
+        self.elegir_foto = QPushButton('Elegir foto', objectName='secondary')
+        self.elegir_foto.setAutoDefault(False)
+        self.elegir_foto.clicked.connect(self._seleccionar_foto)
+        self.quitar_foto = QPushButton('Quitar foto', objectName='secondary')
+        self.quitar_foto.setAutoDefault(False)
+        self.quitar_foto.setEnabled(bool(self._foto_seleccionada))
+        self.quitar_foto.clicked.connect(self._quitar_foto)
+        photo_buttons.addWidget(self.elegir_foto)
+        photo_buttons.addWidget(self.quitar_foto)
+        photo_buttons.addStretch()
+        photo_copy.addLayout(photo_buttons)
+        photo_copy.addWidget(_label('JPG, PNG o WebP · Máximo 10 MB. Se recorta al centro para el carnet.', 'muted', True))
+        photo_row.addLayout(photo_copy, 1)
+        fields.addLayout(photo_row)
+        self.usuario.textChanged.connect(lambda text: self.foto.setText(initials(text)))
         self.rol = QComboBox()
         for rol in ROLES:
             self.rol.addItem(rol.capitalize(), rol)
         self.activo = QCheckBox('Cuenta activa')
         self.activo.setChecked(True)
-        self.contrasena = QLineEdit()
-        self.confirmacion = QLineEdit()
-        for campo in (self.contrasena, self.confirmacion):
-            campo.setEchoMode(QLineEdit.Password)
-            campo.setMaxLength(128)
-        self.contrasena.setPlaceholderText('6 a 128 caracteres')
         form.addRow('Usuario', self.usuario)
         form.addRow('Rol', self.rol)
         form.addRow('Estado', self.activo)
@@ -89,24 +113,22 @@ class UsuarioDialog(QDialog):
         self.telefono = QLineEdit(placeholderText='+51 987 654 321')
         self.telefono.setMaxLength(40)
         self.telefono.setToolTip('Número internacional con + y código de país, de 8 a 15 dígitos.')
-        contacto.addRow('Correo electrónico', self.correo)
-        contacto.addRow('Teléfono', self.telefono)
+        contacto.addRow('Correo electrónico *', self.correo)
+        contacto.addRow('Teléfono *', self.telefono)
         fields.addLayout(contacto)
-        fields.addWidget(_label('Opcionales por ahora. Registrar estos datos no verifica el contacto ni activa el envío de códigos.', 'muted', True))
+        fields.addWidget(_label('* Campos obligatorios. El correo se usa para recuperar la contraseña y el teléfono para contacto.', 'muted', True))
         fields.addWidget(_rule())
         fields.addWidget(_label('03  /  SEGURIDAD DE LA CUENTA', 'formSection'))
-        seguridad = QFormLayout()
-        seguridad.setSpacing(12)
-        seguridad.addRow('Nueva contraseña' if registro else 'Contraseña', self.contrasena)
-        seguridad.addRow('Confirmar contraseña', self.confirmacion)
-        fields.addLayout(seguridad)
+        fields.addWidget(_label(
+            'Las contraseñas no se pueden consultar ni modificar desde este formulario.' if registro else
+            'Al crear la cuenta se generará una clave temporal aleatoria de 8 dígitos. Se mostrará una sola vez y el usuario deberá cambiarla al iniciar sesión.',
+            'note', True))
         if registro:
             self.usuario.setText(registro['usuario'])
             self.rol.setCurrentIndex(self.rol.findData(registro['rol']))
             self.activo.setChecked(registro['activo'])
             self.correo.setText(registro.get('correo') or '')
             self.telefono.setText(registro.get('telefono') or '')
-            fields.addWidget(_label('Deja la contraseña vacía para conservar la actual.', 'muted', True))
             if self._propio:
                 self.rol.setEnabled(False)
                 self.activo.setEnabled(False)
@@ -128,22 +150,48 @@ class UsuarioDialog(QDialog):
         botones.addWidget(self.cancelar)
         botones.addWidget(self.guardar_button)
         layout.addLayout(botones)
-        self.finished.connect(self._limpiar_password)
 
-    def _limpiar_password(self, _resultado):
-        self.contrasena.clear()
-        self.confirmacion.clear()
-
-    def _enviar(self):
-        if self.contrasena.text() != self.confirmacion.text():
-            self.error.setText('Las contraseñas no coinciden.')
+    def _seleccionar_foto(self):
+        path, _ = QFileDialog.getOpenFileName(self, 'Elegir foto de perfil', '',
+                                             'Imágenes (*.jpg *.jpeg *.png *.webp)')
+        if not path:
+            return
+        try:
+            image = leer_foto(path)
+        except ValueError as error:
+            self.error.setText(str(error))
             self.error.show()
             return
+        self._foto_seleccionada = path
+        self._foto_cambiada = True
+        self.foto.set_foto(path, image)
+        self.quitar_foto.setEnabled(True)
+        self.error.clear()
+        self.error.hide()
+
+    def _quitar_foto(self):
+        self._foto_seleccionada = None
+        self._foto_cambiada = True
+        self.foto.set_foto(None)
+        self.quitar_foto.setEnabled(False)
+
+    def _enviar(self):
+        for campo, validar in ((self.correo, UsuariosService._correo),
+                               (self.telefono, UsuariosService._telefono)):
+            try:
+                validar(campo.text())
+            except ValueError as error:
+                self.error.setText(str(error))
+                self.error.show()
+                campo.setFocus()
+                return
         datos = dict(usuario=self.usuario.text(), rol=self.rol.currentData(),
-                     activo=self.activo.isChecked(), contrasena=self.contrasena.text(),
+                     activo=self.activo.isChecked(),
                      correo=self.correo.text(), telefono=self.telefono.text())
         if self.registro:
             datos['id_usuario'] = self.registro['id_usuario']
+        if self._foto_cambiada:
+            datos['foto_perfil'] = self._foto_seleccionada
         self.error.clear()
         self.error.hide()
         self.guardar.emit(datos)
@@ -151,7 +199,9 @@ class UsuarioDialog(QDialog):
     def establecer_ocupado(self, ocupado):
         self.guardar_button.setEnabled(not ocupado)
         self.cancelar.setEnabled(not ocupado)
-        for campo in (self.usuario, self.correo, self.telefono, self.contrasena, self.confirmacion):
+        self.elegir_foto.setEnabled(not ocupado)
+        self.quitar_foto.setEnabled(not ocupado and bool(self._foto_seleccionada))
+        for campo in (self.usuario, self.correo, self.telefono):
             campo.setEnabled(not ocupado)
         if not self._propio:
             self.rol.setEnabled(not ocupado)
@@ -172,6 +222,7 @@ class UsuariosView(QWidget):
         self.setStyleSheet(USERS_STYLE)
         self.controller = controller if controller is not None else UsuariosController(sesion, parent=self)
         self._dialogo = None
+        self._credenciales = None
         self._confirmacion = None
         self._ocupado = False
         self._recarga_pendiente = False
@@ -371,58 +422,45 @@ class UsuariosView(QWidget):
 
     def _inspector(self):
         self.inspector = QFrame(objectName='inspector')
-        self.inspector.setMinimumWidth(256)
+        self.inspector.setMinimumWidth(310)
+        self.inspector.setMaximumWidth(380)
         layout = QVBoxLayout(self.inspector)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(5, 0, 5, 16)
         layout.setSpacing(9)
-        layout.addWidget(_label('FICHA DE ACCESO', 'eyebrow'))
-        self.perfil_avatar = _label('◎', 'profileAvatar')
-        self.perfil_avatar.setFixedSize(74, 74)
-        self.perfil_avatar.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.perfil_avatar)
-        self.perfil_nombre = _label('Cada persona,\nsu lugar.', 'profileName', True)
-        self.perfil_rol = _label('Selecciona una cuenta del directorio', 'profileRole', True)
-        layout.addWidget(self.perfil_nombre)
-        layout.addWidget(self.perfil_rol)
-        layout.addWidget(_rule())
-        datos = QGridLayout()
-        datos.setVerticalSpacing(6)
-        self.perfil_estado = _label('—', 'fieldValue')
-        self.perfil_acceso = _label('—', 'fieldValue', True)
-        self.perfil_creacion = _label('—', 'fieldValue', True)
-        self.perfil_correo = _label('—', 'fieldValue', True)
-        self.perfil_telefono = _label('—', 'fieldValue', True)
-        for campo in (self.perfil_correo, self.perfil_telefono):
-            campo.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        for fila, (texto, label) in enumerate((('Estado', self.perfil_estado),
-                                             ('Último acceso', self.perfil_acceso),
-                                             ('Creación', self.perfil_creacion),
-                                             ('Correo', self.perfil_correo),
-                                             ('Teléfono', self.perfil_telefono))):
-            datos.addWidget(_label(texto, 'fieldCaption'), fila * 2, 0)
-            datos.addWidget(label, fila * 2 + 1, 0)
-        layout.addLayout(datos)
-        self.perfil_contacto_estado = _label('', 'muted', True)
-        layout.addWidget(self.perfil_contacto_estado)
-        layout.addWidget(_rule())
-        layout.addWidget(_label('ALCANCE DEL ROL', 'fieldCaption'))
-        self.permisos = _label('Consulta su rol y administra sus credenciales desde un solo lugar.', 'permission', True)
-        layout.addWidget(self.permisos)
-        layout.addStretch()
+        self.carnet = FichaAcceso()
+        layout.addWidget(self.carnet, 0, Qt.AlignHCenter)
+        self.perfil_avatar = self.carnet.avatar
+        self.perfil_nombre = self.carnet.nombre
+        self.perfil_rol = self.carnet.rol
+        self.perfil_estado = self.carnet.estado
+        self.perfil_acceso = self.carnet.acceso
+        self.perfil_creacion = self.carnet.creacion
+        self.perfil_correo = self.carnet.correo
+        self.perfil_telefono = self.carnet.telefono
+        self.permisos = self.carnet.permisos
+        hint = _label('↔  Pasa el mouse para girar · Clic para fijar', 'muted')
+        hint.setAlignment(Qt.AlignCenter)
+        layout.addWidget(hint)
+        actions = QVBoxLayout()
+        actions.setContentsMargins(16, 0, 16, 0)
+        actions.setSpacing(8)
         self.editar = QPushButton('Editar acceso  ↗', objectName='primary')
         self.editar.clicked.connect(self._editar)
         self.eliminar = QPushButton('Eliminar cuenta', objectName='danger')
         self.eliminar.clicked.connect(self._eliminar)
-        layout.addWidget(self.editar)
-        layout.addWidget(self.eliminar)
+        actions.addWidget(self.editar)
+        actions.addWidget(self.eliminar)
         self.perfil_nota = _label('¿Solo necesitas pausar el acceso? Desactiva la cuenta desde Editar para conservar su historial.', 'note', True)
-        layout.addWidget(self.perfil_nota)
+        actions.addWidget(self.perfil_nota)
+        layout.addLayout(actions)
+        layout.addStretch()
         return self.inspector
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         compact = self.width() < 1000
         self.body.setDirection(QBoxLayout.TopToBottom if compact else QBoxLayout.LeftToRight)
+        self.body.setAlignment(self.inspector, Qt.AlignHCenter if compact else Qt.AlignTop)
         columns = 2 if compact else 4
         for index, card in enumerate(self.metric_cards):
             self.metric_grid.removeWidget(card)
@@ -449,6 +487,10 @@ class UsuariosView(QWidget):
 
     def _acciones(self):
         registro = self._seleccionado()
+        self.carnet.reset_for(registro['id_usuario'] if registro else None)
+        self.carnet.set_code(registro['id_usuario'] if registro else None)
+        self.carnet.set_status(registro['activo'] if registro else False)
+        self.perfil_avatar.set_foto(registro.get('foto_perfil') if registro else None)
         self.editar.setEnabled(not self._ocupado and registro is not None)
         self.eliminar.setEnabled(not self._ocupado and registro is not None
                                  and registro['id_usuario'] != self.sesion.id_usuario)
@@ -462,9 +504,6 @@ class UsuariosView(QWidget):
             self.perfil_creacion.setText(self._fecha(registro['fecha_creacion']))
             self.perfil_correo.setText(registro.get('correo') or 'Sin registrar')
             self.perfil_telefono.setText(registro.get('telefono') or 'Sin registrar')
-            contactos = [f'{nombre}: {"verificado" if registro.get(campo + "_verificado_en") else "sin verificar"}'
-                         for campo, nombre in (('correo', 'Correo'), ('telefono', 'Teléfono')) if registro.get(campo)]
-            self.perfil_contacto_estado.setText(' · '.join(contactos))
             self.permisos.setText('✓  Puede gestionar usuarios y sus roles.' if registro['rol'] == 'administrador'
                                  else '—  Sin permisos de gestión de usuarios.')
             self.perfil_nota.setText('Tu cuenta está protegida: no puedes eliminarla, desactivarla ni quitarte el rol de administrador.' if propio
@@ -476,7 +515,6 @@ class UsuariosView(QWidget):
             for campo in (self.perfil_estado, self.perfil_acceso, self.perfil_creacion,
                           self.perfil_correo, self.perfil_telefono):
                 campo.setText('—')
-            self.perfil_contacto_estado.clear()
             self.permisos.setText('Consulta su rol y administra sus credenciales desde un solo lugar.')
             self.perfil_nota.setText('¿Solo necesitas pausar el acceso? Desactiva la cuenta desde Editar para conservar su historial.')
 
@@ -573,12 +611,23 @@ class UsuariosView(QWidget):
         else:
             if self._dialogo:
                 self._dialogo.accept()
+            if resultado['accion'] == 'crear':
+                clave = resultado.pop('contrasena_temporal', None)
+                if clave:
+                    self._credenciales = CredencialesDialog(resultado.get('usuario', ''), clave, self)
+                    self._credenciales.finished.connect(self._cerrar_credenciales)
+                    self._credenciales.open()
             self._feedback({'crear': 'Usuario creado. Ya tiene un lugar en tu equipo.',
                             'modificar': 'Usuario actualizado. Sus cambios de acceso se guardaron.',
                             'eliminar': 'Usuario eliminado.'}[resultado['accion']])
             self._reautenticacion_pendiente = resultado.get('reautenticar', False)
             self._recarga_pendiente = not self._reautenticacion_pendiente
         self._acciones()
+
+    def _cerrar_credenciales(self, _resultado):
+        dialogo, self._credenciales = self._credenciales, None
+        if dialogo:
+            dialogo.deleteLater()
 
     def _fallo(self, mensaje):
         self._feedback(mensaje, error=True)

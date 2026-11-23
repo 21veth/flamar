@@ -9,6 +9,7 @@ from controllers.login_controller import LoginController
 from views.app_theme import zeyver_stylesheet
 from views.home_view import HomeView
 from views.recuperacion_dialog import RecuperacionDialog
+from views.password_dialogs import CambioPasswordDialog
 from views.ui_components import BrandWidget, LogoMark
 
 
@@ -78,8 +79,11 @@ class LoginView(QWidget):
         self.resize(1280, 760)
         self.home_view = None
         self.recovery_dialog = None
+        self.cambio_dialog = None
+        self._cambio_pendiente = None
         self._controller = LoginController(auth_service)
         self._controller.autenticado.connect(self._on_autenticado)
+        self._controller.cambio_requerido.connect(self._on_cambio_requerido)
         self._controller.fallo.connect(self._on_fallo)
         self._controller.finalizado.connect(self._on_finalizado)
         self._pending_close = False
@@ -177,6 +181,8 @@ class LoginView(QWidget):
         self.mobile_brand.setVisible(narrow)
 
     def handle_login(self):
+        if self.cambio_dialog is not None:
+            return
         username = self.user_input.text().strip()
         password = self.password_input.text()
         if not username or not password:
@@ -193,6 +199,9 @@ class LoginView(QWidget):
         if self._pending_close:
             return
         self.password_input.clear()
+        if self.cambio_dialog:
+            self.cambio_dialog.establecer_ocupado(False)
+            self.cambio_dialog.accept()
         if self.home_view is not None:
             self.home_view.close()
             self.home_view.deleteLater()
@@ -205,9 +214,14 @@ class LoginView(QWidget):
     def _on_fallo(self, mensaje):
         if self._pending_close:
             return
-        QMessageBox.warning(self, 'Inicio de sesión', mensaje)
+        if self.cambio_dialog:
+            self.cambio_dialog.mostrar_error(mensaje)
+        else:
+            QMessageBox.warning(self, 'Inicio de sesión', mensaje)
 
     def _on_finalizado(self):
+        if self.cambio_dialog:
+            self.cambio_dialog.establecer_ocupado(False)
         self.login_button.setEnabled(True)
         self.user_input.setEnabled(True)
         self.password_input.setEnabled(True)
@@ -216,6 +230,30 @@ class LoginView(QWidget):
         self.password_input.setFocus()
         if self._pending_close:
             self.close()
+
+    def _on_cambio_requerido(self, pendiente):
+        if self._pending_close:
+            self._controller.cancelar_cambio(pendiente.token)
+            return
+        self.password_input.clear()
+        self._cambio_pendiente = pendiente
+        self.cambio_dialog = CambioPasswordDialog(pendiente.usuario, self)
+        self.cambio_dialog.guardar.connect(self._guardar_password_inicial)
+        self.cambio_dialog.finished.connect(self._cerrar_cambio)
+        self.cambio_dialog.open()
+
+    def _guardar_password_inicial(self, nueva, confirmacion):
+        if self._cambio_pendiente and self._controller.cambiar_password(self._cambio_pendiente.token, nueva, confirmacion):
+            self.cambio_dialog.establecer_ocupado(True)
+
+    def _cerrar_cambio(self, _resultado):
+        if self._cambio_pendiente:
+            self._controller.cancelar_cambio(self._cambio_pendiente.token)
+        self._cambio_pendiente = None
+        dialogo, self.cambio_dialog = self.cambio_dialog, None
+        if dialogo:
+            dialogo.deleteLater()
+        self.password_input.clear()
 
     def handle_logout(self):
         self._pending_close = False
@@ -247,6 +285,8 @@ class LoginView(QWidget):
             self.hide()
             return
         self._pending_close = False
+        if self.cambio_dialog:
+            self.cambio_dialog.reject()
         event.accept()
 
     @staticmethod

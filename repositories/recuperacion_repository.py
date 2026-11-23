@@ -38,9 +38,9 @@ class RecuperacionRepository:
     def _administrador(cursor, id_administrador):
         if type(id_administrador) is not int or id_administrador <= 0:
             raise PermissionError('Solo un administrador activo puede revisar solicitudes.')
-        cursor.execute('SELECT rol,activo FROM public.usuarios WHERE id_usuario=%s', (id_administrador,))
+        cursor.execute('SELECT rol,activo,debe_cambiar_password FROM public.usuarios WHERE id_usuario=%s', (id_administrador,))
         usuario = cursor.fetchone()
-        if not usuario or usuario['rol'] != 'administrador' or not usuario['activo']:
+        if not usuario or usuario['rol'] != 'administrador' or not usuario['activo'] or usuario.get('debe_cambiar_password'):
             raise PermissionError('Solo un administrador activo puede revisar solicitudes.')
 
     @staticmethod
@@ -60,10 +60,10 @@ class RecuperacionRepository:
 
     @staticmethod
     def _aprobador_valido(cursor, solicitud):
-        cursor.execute('SELECT rol,activo FROM public.usuarios WHERE id_usuario=%s', (solicitud['id_administrador'],))
+        cursor.execute('SELECT rol,activo,debe_cambiar_password FROM public.usuarios WHERE id_usuario=%s', (solicitud['id_administrador'],))
         admin = cursor.fetchone()
         valido = (solicitud['id_administrador'] != solicitud['id_usuario'] and admin
-                  and admin['rol'] == 'administrador' and admin['activo'])
+                   and admin['rol'] == 'administrador' and admin['activo'] and not admin.get('debe_cambiar_password'))
         if not valido:
             cursor.execute("UPDATE public.recuperaciones_password SET estado='cancelada',codigo_hash=NULL "
                            'WHERE id_solicitud=%s', (solicitud['id_solicitud'],))
@@ -239,7 +239,7 @@ class RecuperacionRepository:
                 return False
             if not self._objetivo_valido(cursor, solicitud) or not self._aprobador_valido(cursor, solicitud):
                 return False
-            cursor.execute('UPDATE public.usuarios SET password_hash=%s,correo_verificado_en=CURRENT_TIMESTAMP '
+            cursor.execute('UPDATE public.usuarios SET password_hash=%s,debe_cambiar_password=FALSE,correo_verificado_en=CURRENT_TIMESTAMP '
                            'WHERE id_usuario=%s', (password_hash, solicitud['id_usuario']))
             cursor.execute("UPDATE public.recuperaciones_password SET estado='completada',codigo_hash=NULL,cambiado_en=CURRENT_TIMESTAMP "
                            'WHERE id_solicitud=%s', (solicitud['id_solicitud'],))

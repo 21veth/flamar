@@ -52,36 +52,78 @@ class UsuariosPostgresTests(unittest.TestCase):
         self.addCleanup(parche.stop)
         self.repo = UsuarioRepository()
         self.service = UsuariosService(SesionUsuario(self.id_admin, 'admin', 'administrador'), self.repo)
+        self._creados = 0
+        self._temporales = {}
 
     def crear(self, usuario='nuevo', **datos):
-        return self.service.ejecutar('crear', **dict(dict(
-            usuario=usuario, rol='trabajador', activo=True, contrasena='ClaveDePrueba123'), **datos))['id_usuario']
+        self._creados += 1
+        resultado = self.service.ejecutar('crear', **dict(dict(
+            usuario=usuario, rol='trabajador', activo=True,
+            correo=f'{usuario}@example.com', telefono=f'+519{self._creados:08d}'), **datos))
+        self._temporales[resultado['id_usuario']] = resultado['contrasena_temporal']
+        return resultado['id_usuario']
+
+    def modificar(self, id_usuario, **datos):
+        registro = next(u for u in self.repo.listar(self.id_admin) if u['id_usuario'] == id_usuario)
+        campos = {campo: registro[campo] for campo in ('usuario', 'rol', 'activo', 'correo', 'telefono')}
+        return self.service.ejecutar('modificar', id_usuario=id_usuario, **dict(campos, **datos))
 
     def test_crud_y_compatibilidad_con_inicio_de_sesion(self):
         nuevo = self.crear()
         auth = AuthService(self.repo)
-        self.assertEqual(auth.autenticar('nuevo', 'ClaveDePrueba123').id_usuario, nuevo)
-        self.service.ejecutar('modificar', id_usuario=nuevo, usuario='renombrado', rol='gerente', activo=True, contrasena='OtraClave123')
-        self.assertEqual(auth.autenticar('renombrado', 'OtraClave123').rol, 'gerente')
+        pendiente = auth.autenticar('nuevo', self._temporales[nuevo])
+        self.assertFalse(hasattr(pendiente, 'id_usuario'))
+        sesion = auth.cambiar_password_inicial(pendiente.token, 'MiClaveNueva123', 'MiClaveNueva123')
+        self.assertEqual(sesion.id_usuario, nuevo)
+        self.modificar(nuevo, usuario='renombrado', rol='gerente', activo=True)
+        self.assertEqual(auth.autenticar('renombrado', 'MiClaveNueva123').rol, 'gerente')
+        with self.assertRaises(CredencialesInvalidasError):
+            auth.autenticar('renombrado', self._temporales[nuevo])
         listado = self.service.ejecutar('listar', buscar='NOMB', rol='gerente', activo=True)['usuarios']
         self.assertEqual([u['id_usuario'] for u in listado], [nuevo])
         self.assertNotIn('password_hash', listado[0])
         self.service.ejecutar('eliminar', id_usuario=nuevo)
         self.assertEqual(self.service.ejecutar('listar', buscar='renombrado')['usuarios'], [])
 
-    def test_desactivar_impide_login_y_password_vacio_conserva_hash(self):
+    def test_desactivar_impide_login_y_editar_no_cambia_hash(self):
         nuevo = self.crear()
-        self.service.ejecutar('modificar', id_usuario=nuevo, usuario='nuevo', rol='trabajador', activo=False, contrasena='')
+        self.modificar(nuevo, usuario='nuevo', rol='trabajador', activo=False)
         with self.assertRaises(CredencialesInvalidasError):
-            AuthService(self.repo).autenticar('nuevo', 'ClaveDePrueba123')
+            AuthService(self.repo).autenticar('nuevo', self._temporales[nuevo])
         registro = self.repo.obtener_por_usuario('nuevo')
-        self.assertTrue(PasswordHasher().verify(registro['password_hash'], 'ClaveDePrueba123'))
+        self.assertTrue(PasswordHasher().verify(registro['password_hash'], self._temporales[nuevo]))
+        self.assertTrue(registro['debe_cambiar_password'])
 
     def test_duplicado_no_deja_cambios_parciales(self):
         self.crear()
         with self.assertRaisesRegex(ValueError, 'ya existe'):
             self.crear()
         self.assertEqual(len(self.service.ejecutar('listar')['usuarios']), 2)
+
+    def test_cambio_inicial_es_atomico_y_no_funciona_tras_desactivar(self):
+        nuevo = self.crear()
+        auth = AuthService(self.repo)
+        pendiente = auth.autenticar('nuevo', self._temporales[nuevo])
+        with self.conexion.cursor() as cursor:
+            cursor.execute('SELECT ultimo_acceso FROM public.usuarios WHERE id_usuario=%s', (nuevo,))
+            self.assertIsNone(cursor.fetchone()[0])
+        with self.assertRaisesRegex(ValueError, 'Gestión de usuarios'):
+            self.modificar(nuevo, contrasena='ClaveImpuesta123')
+        self.modificar(nuevo, activo=False)
+        with self.assertRaisesRegex(ValueError, 'no están disponibles'):
+            auth.cambiar_password_inicial(pendiente.token, 'MiClaveNueva123', 'MiClaveNueva123')
+        registro = self.repo.obtener_por_usuario('nuevo')
+        self.assertTrue(registro['debe_cambiar_password'])
+        self.assertTrue(PasswordHasher().verify(registro['password_hash'], self._temporales[nuevo]))
+
+    def test_administrador_temporal_no_puede_gestionar_antes_de_cambiar_clave(self):
+        nuevo = self.crear(usuario='otro-admin', rol='administrador')
+        with self.assertRaises(PermissionError):
+            self.repo.listar(nuevo)
+        auth = AuthService(self.repo)
+        pendiente = auth.autenticar('otro-admin', self._temporales[nuevo])
+        auth.cambiar_password_inicial(pendiente.token, 'MiClaveNueva123', 'MiClaveNueva123')
+        self.assertTrue(self.repo.listar(nuevo))
 
     def test_revocacion_de_rol_en_bd_invalida_sesion_antigua(self):
         with self.conexion.cursor() as cursor:
@@ -137,8 +179,7 @@ class UsuariosPostgresTests(unittest.TestCase):
         self.crear(correo='nuevo@example.com')
         otro = self.crear(usuario='otro', correo='otro@example.com')
         with self.assertRaisesRegex(ValueError, 'correo'):
-            self.service.ejecutar('modificar', id_usuario=otro, usuario='renombrado', rol='gerente',
-                                 activo=False, correo='nuevo@example.com')
+            self.modificar(otro, usuario='renombrado', rol='gerente', activo=False, correo='nuevo@example.com')
         registro = self.service.ejecutar('listar', buscar='otro')['usuarios'][0]
         self.assertEqual(registro['usuario'], 'otro')
         self.assertEqual(registro['rol'], 'trabajador')
@@ -150,33 +191,40 @@ class UsuariosPostgresTests(unittest.TestCase):
         with self.conexion.cursor() as cursor:
             cursor.execute('UPDATE public.usuarios SET correo_verificado_en=CURRENT_TIMESTAMP, '
                            'telefono_verificado_en=CURRENT_TIMESTAMP WHERE id_usuario=%s', (nuevo,))
-        self.service.ejecutar('modificar', id_usuario=nuevo, usuario='nuevo', rol='gerente', activo=True,
-                             correo='nuevo@example.com', telefono='+51987654321')
+        self.modificar(nuevo, usuario='nuevo', rol='gerente', activo=True,
+                       correo='nuevo@example.com', telefono='+51987654321')
         registro = self.service.ejecutar('listar', buscar='nuevo')['usuarios'][0]
         self.assertIsNotNone(registro['correo_verificado_en'])
-        self.service.ejecutar('modificar', id_usuario=nuevo, usuario='nuevo', rol='gerente', activo=True,
-                             correo='otro@example.com')
+        self.modificar(nuevo, usuario='nuevo', rol='gerente', activo=True, correo='otro@example.com')
         registro = self.service.ejecutar('listar', buscar='nuevo')['usuarios'][0]
         self.assertIsNone(registro['correo_verificado_en'])
         self.assertEqual(registro['telefono'], '+51987654321')
         self.assertIsNotNone(registro['telefono_verificado_en'])
-        self.service.ejecutar('modificar', id_usuario=nuevo, usuario='nuevo', rol='gerente', activo=True,
-                             telefono='')
+        self.modificar(nuevo, usuario='nuevo', rol='gerente', activo=True, telefono='+51987654322')
         registro = self.service.ejecutar('listar', buscar='nuevo')['usuarios'][0]
-        self.assertIsNone(registro['telefono'])
+        self.assertEqual(registro['telefono'], '+51987654322')
         self.assertIsNone(registro['telefono_verificado_en'])
 
-    def test_edicion_sin_contactos_los_conserva_y_vacios_los_quitan(self):
+    def test_edicion_sin_contactos_o_vacios_se_rechaza_sin_cambios(self):
         nuevo = self.crear(correo='nuevo@example.com', telefono='+51987654321')
         datos = dict(id_usuario=nuevo, usuario='nuevo', rol='trabajador', activo=True)
-        self.service.ejecutar('modificar', **datos)
+        with self.assertRaisesRegex(ValueError, 'obligatorio'):
+            self.service.ejecutar('modificar', **datos)
+        with self.assertRaisesRegex(ValueError, 'obligatorio'):
+            self.service.ejecutar('modificar', **datos, correo='', telefono='')
         registro = self.service.ejecutar('listar', buscar='nuevo')['usuarios'][0]
         self.assertEqual(registro['correo'], 'nuevo@example.com')
         self.assertEqual(registro['telefono'], '+51987654321')
-        self.service.ejecutar('modificar', **datos, correo='', telefono='')
-        registro = self.service.ejecutar('listar', buscar='nuevo')['usuarios'][0]
-        self.assertIsNone(registro['correo'])
-        self.assertIsNone(registro['telefono'])
+
+    def test_foto_perfil_persiste_se_conserva_y_se_quita(self):
+        foto = 'assets/perfiles/foto-prueba.jpg'
+        nuevo = self.repo.crear(self.id_admin, 'con-foto', 'no-login', 'trabajador', True,
+                                correo='foto@example.com', telefono='+51987654321', foto_perfil=foto)
+        self.assertEqual(self.repo.listar(self.id_admin, 'con-foto')[0]['foto_perfil'], foto)
+        self.modificar(nuevo, usuario='foto-editada')
+        self.assertEqual(self.repo.listar(self.id_admin, 'foto-editada')[0]['foto_perfil'], foto)
+        self.modificar(nuevo, foto_perfil=None)
+        self.assertIsNone(self.repo.listar(self.id_admin, 'foto-editada')[0]['foto_perfil'])
 
 
 if __name__ == '__main__':

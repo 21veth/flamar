@@ -1,21 +1,25 @@
 import re
+import secrets
+from contextlib import nullcontext
 
 import psycopg
 from argon2 import PasswordHasher
 
 from repositories.usuario_repository import UsuarioRepository
+from utils.fotos_perfil import FotosPerfil
 
 
 ROLES = ('administrador', 'gerente', 'trabajador')
 
 
 class UsuariosService:
-    """Gestión administrativa sobre usuarios reales, sin exponer credenciales."""
+    """Gestión administrativa; entrega la clave temporal solo al crear."""
 
-    def __init__(self, sesion, repositorio=None, hasher=None):
+    def __init__(self, sesion, repositorio=None, hasher=None, fotos=None):
         self.sesion = sesion
         self._repositorio = repositorio if repositorio is not None else UsuarioRepository()
         self._hasher = hasher if hasher is not None else PasswordHasher()
+        self._fotos = fotos if fotos is not None else FotosPerfil()
 
     @staticmethod
     def _id(valor):
@@ -47,12 +51,12 @@ class UsuariosService:
     @staticmethod
     def _correo(valor):
         if valor is None:
-            return None
+            raise ValueError('El correo electrónico es obligatorio para recuperar la contraseña.')
         if not isinstance(valor, str) or any(ord(c) < 32 or ord(c) == 127 for c in valor):
             raise ValueError('Introduce un correo electrónico válido.')
         valor = valor.strip().lower()
         if not valor:
-            return None
+            raise ValueError('El correo electrónico es obligatorio para recuperar la contraseña.')
         patron = r"[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+"
         if len(valor) > 254 or re.fullmatch(patron, valor) is None:
             raise ValueError('Introduce un correo válido, por ejemplo nombre@dominio.com.')
@@ -66,12 +70,12 @@ class UsuariosService:
     @staticmethod
     def _telefono(valor):
         if valor is None:
-            return None
+            raise ValueError('El teléfono de contacto es obligatorio.')
         if not isinstance(valor, str) or any(ord(c) < 32 or ord(c) == 127 for c in valor):
             raise ValueError('Introduce un teléfono válido con código de país.')
         valor = valor.strip()
         if not valor:
-            return None
+            raise ValueError('El teléfono de contacto es obligatorio.')
         if len(valor) > 40:
             raise ValueError('El teléfono es demasiado largo.')
         valor = re.sub(r'[ ()-]', '', valor)
@@ -103,24 +107,32 @@ class UsuariosService:
                     raise ValueError('No puedes eliminar tu propia cuenta.')
                 self._repositorio.eliminar(actor, destino)
             else:
+                if 'contrasena' in datos or 'password_hash' in datos:
+                    raise ValueError('No se puede establecer ni cambiar la contraseña desde Gestión de usuarios.')
                 nombre = self._datos(datos.get('usuario'), datos.get('rol'), datos.get('activo'))
                 destino = self._id(datos.get('id_usuario')) if accion == 'modificar' else None
                 if destino == actor and (datos['rol'] != 'administrador' or not datos['activo']):
                     raise ValueError('No puedes quitarte el rol de administrador ni desactivar tu propia cuenta.')
-                contacto = {}
-                if 'correo' in datos:
-                    contacto['correo'] = self._correo(datos['correo'])
-                if 'telefono' in datos:
-                    contacto['telefono'] = self._telefono(datos['telefono'])
-                password_hash = self._password_hash(datos.get('contrasena', ''), obligatorio=accion == 'crear')
-                if accion == 'crear':
-                    destino = self._repositorio.crear(actor, nombre, password_hash, datos['rol'], datos['activo'], **contacto)
-                else:
-                    self._repositorio.modificar(actor, destino, nombre, datos['rol'], datos['activo'], password_hash, **contacto)
-            return {
+                contacto = dict(correo=self._correo(datos.get('correo')),
+                                telefono=self._telefono(datos.get('telefono')))
+                temporal = f'{secrets.randbelow(100_000_000):08d}' if accion == 'crear' else None
+                password_hash = self._hasher.hash(temporal) if temporal is not None else None
+                cambiar_foto = 'foto_perfil' in datos
+                contexto_foto = self._fotos.preparar(datos['foto_perfil']) if cambiar_foto else nullcontext()
+                with contexto_foto as foto:
+                    if cambiar_foto:
+                        contacto['foto_perfil'] = foto
+                    if accion == 'crear':
+                        destino = self._repositorio.crear(actor, nombre, password_hash, datos['rol'], datos['activo'], **contacto)
+                    else:
+                        self._repositorio.modificar(actor, destino, nombre, datos['rol'], datos['activo'], **contacto)
+            resultado = {
                 'accion': accion, 'id_usuario': destino,
                 'reautenticar': accion == 'modificar' and destino == actor,
             }
+            if accion == 'crear':
+                resultado.update(usuario=nombre, contrasena_temporal=temporal)
+            return resultado
         except psycopg.errors.UniqueViolation as error:
             if error.diag.constraint_name == 'uq_usuarios_correo':
                 raise ValueError('Ese correo ya pertenece a otro usuario. Introduce uno diferente.') from None
