@@ -53,10 +53,6 @@ ALIASES = {
 }
 
 
-class ArchivoDuplicadoError(Exception):
-    """El hash del archivo ya fue validado anteriormente."""
-
-
 def combinar_reportes(preparadas):
     """Une los reportes de todos los Excel en un unico resumen."""
     return ReporteValidacion(
@@ -222,10 +218,6 @@ class ImportacionProveedoresService:
         for ruta in rutas:
             ruta = Path(ruta)
             hash_archivo = self._hash_archivo(ruta)
-            if self._contexto is not None and self._contexto.existe_hash(hash_archivo):
-                raise ArchivoDuplicadoError(
-                    f'El archivo {ruta.name} ya fue validado anteriormente.'
-                )
             try:
                 datos = self._lector(ruta)
             except ImportFileError:
@@ -701,7 +693,6 @@ __all__ = [
     'ALIASES',
     'COLUMNS',
     'COLUMNS_REQUERIDAS',
-    'ArchivoDuplicadoError',
     'ContextoValidacion',
     'ImportacionProveedoresService',
     'PersistenciaValidacion',

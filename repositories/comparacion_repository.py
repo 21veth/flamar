@@ -77,6 +77,7 @@ class ComparacionRepository:
             FROM public.importaciones i
             WHERE i.estado = 'completada'
               AND i.id_usuario = %s
+              AND i.comparacion_eliminada = FALSE
               AND NOT EXISTS (
                   SELECT 1
                   FROM public.cotizaciones co
@@ -357,112 +358,51 @@ class ComparacionRepository:
                 )
                 ids_importacion = [fila[0] for fila in cursor.fetchall()]
 
-                if not ids_importacion:
+                cursor.execute(
+                    '''
+                    UPDATE public.importaciones
+                    SET comparacion_eliminada = TRUE
+                    WHERE id_importacion = ANY(%s)
+                      AND id_usuario = %s
+                    ''',
+                    (ids_importacion, id_usuario),
+                )
+                cursor.execute(
+                    "SELECT to_regclass('public.ingresos_inventario')"
+                )
+                existe_ingresos = cursor.fetchone()[0] is not None
+                if existe_ingresos:
                     cursor.execute(
                         '''
-                        DELETE FROM public.detalle_comparacion
-                        WHERE id_comparacion IN (
-                            SELECT id_comparacion FROM public.comparaciones
-                            WHERE id_comparacion = %s AND id_usuario = %s
-                        )
-                        ''',
-                        (id_comparacion, id_usuario),
-                    )
-                    cursor.execute(
-                        '''
-                        DELETE FROM public.comparaciones
-                        WHERE id_comparacion = %s AND id_usuario = %s
-                        ''',
-                        (id_comparacion, id_usuario),
-                    )
-                    eliminadas = cursor.rowcount
-                else:
-                    cursor.execute(
-                        '''
-                        SELECT DISTINCT dcomp.id_comparacion
-                        FROM public.detalle_comparacion dcomp
-                        JOIN public.detalle_cotizacion dcot
-                            ON dcot.id_detalle_cotizacion = dcomp.id_detalle_cotizacion
-                        JOIN public.cotizaciones cot
-                            ON cot.id_cotizacion = dcot.id_cotizacion
-                        WHERE cot.id_importacion = ANY(%s)
-                        ''',
-                        (ids_importacion,),
-                    )
-                    ids_comparacion = [fila[0] for fila in cursor.fetchall()]
-
-                    cursor.execute(
-                        '''
-                        SELECT DISTINCT cot.id_proveedor
-                        FROM public.cotizaciones cot
-                        WHERE cot.id_importacion = ANY(%s)
-                        ''',
-                        (ids_importacion,),
-                    )
-                    ids_proveedor = [fila[0] for fila in cursor.fetchall()]
-
-                    cursor.execute(
-                        '''
-                        DELETE FROM public.detalle_comparacion
-                        WHERE id_comparacion = ANY(%s)
-                        ''',
-                        (ids_comparacion,),
-                    )
-                    cursor.execute(
-                        '''
-                        DELETE FROM public.comparaciones
-                        WHERE id_comparacion = ANY(%s)
-                        ''',
-                        (ids_comparacion,),
-                    )
-                    eliminadas = cursor.rowcount
-                    cursor.execute(
-                        '''
-                        DELETE FROM public.errores_importacion
-                        WHERE id_importacion = ANY(%s)
-                        ''',
-                        (ids_importacion,),
-                    )
-                    cursor.execute(
-                        '''
-                        DELETE FROM public.detalle_cotizacion
-                        WHERE id_cotizacion IN (
-                            SELECT id_cotizacion FROM public.cotizaciones
-                            WHERE id_importacion = ANY(%s)
-                        )
-                        ''',
-                        (ids_importacion,),
-                    )
-                    cursor.execute(
-                        '''
-                        DELETE FROM public.cotizaciones
-                        WHERE id_importacion = ANY(%s)
-                        ''',
-                        (ids_importacion,),
-                    )
-                    cursor.execute(
-                        '''
-                        DELETE FROM public.importaciones
-                        WHERE id_importacion = ANY(%s)
-                          AND id_usuario = %s
-                        ''',
-                        (ids_importacion, id_usuario),
-                    )
-                    cursor.execute(
-                        '''
-                        DELETE FROM public.proveedores pro
-                        WHERE pro.id_proveedor = ANY(%s)
-                          AND NOT EXISTS (
-                              SELECT 1 FROM public.cotizaciones cot
-                              WHERE cot.id_proveedor = pro.id_proveedor
-                          )
-                          AND NOT EXISTS (
+                        UPDATE public.ingresos_inventario ing
+                        SET id_comparacion = NULL
+                        WHERE ing.id_comparacion = %s
+                          AND EXISTS (
                               SELECT 1 FROM public.comparaciones comp
-                              WHERE comp.id_proveedor_recomendado = pro.id_proveedor
+                              WHERE comp.id_comparacion = %s
+                                AND comp.id_usuario = %s
                           )
                         ''',
-                        (ids_proveedor,),
+                        (id_comparacion, id_comparacion, id_usuario),
                     )
+                cursor.execute(
+                    '''
+                    DELETE FROM public.detalle_comparacion
+                    WHERE id_comparacion IN (
+                        SELECT id_comparacion FROM public.comparaciones
+                        WHERE id_comparacion = %s AND id_usuario = %s
+                    )
+                    ''',
+                    (id_comparacion, id_usuario),
+                )
+                cursor.execute(
+                    '''
+                    DELETE FROM public.comparaciones
+                    WHERE id_comparacion = %s AND id_usuario = %s
+                    ''',
+                    (id_comparacion, id_usuario),
+                )
+                eliminadas = cursor.rowcount
             conexion.commit()
             return eliminadas
         except Exception:

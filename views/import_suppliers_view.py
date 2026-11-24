@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListView,
+    QMessageBox,
     QPushButton,
     QSizePolicy,
     QStackedWidget,
@@ -250,9 +251,8 @@ def confirmar_borrado(nombre, parent=None):
     layout.setContentsMargins(22, 20, 22, 18)
     layout.setSpacing(14)
     texto = QLabel(
-        f'¿Borrar "{nombre}"? Se eliminarán la comparación, las cotizaciones, '
-        'las ofertas y los errores del Excel asociado. Quedará como si nunca '
-        'se hubiera subido.'
+        f'¿Borrar "{nombre}"? Se eliminará solo esta comparación. Los Excel, '
+        'cotizaciones y ofertas registrados se conservarán.'
     )
     texto.setWordWrap(True)
     layout.addWidget(texto)
@@ -2391,6 +2391,8 @@ class SuppliersImportTab(QWidget):
         self._comparacion_guardada_ids = None
         if hasattr(self, 'historial_estado_texto'):
             self.historial_estado_texto.setText(f'Historial: {mensaje}')
+        if self.isVisible():
+            QMessageBox.critical(self, 'Historial de comparaciones', str(mensaje))
         if (
             hasattr(self, 'confirm_button')
             and self.confirm_button.text() == 'Importación completada'
@@ -2526,7 +2528,7 @@ class SuppliersImportTab(QWidget):
             self.historial_estado_texto.setText('No se pudo borrar la comparación.')
             return
         self.historial_estado_texto.setText(
-            f'Comparación #{id_comparacion} y sus registros eliminados.'
+            f'Comparación #{id_comparacion} eliminada; los Excel se conservaron.'
         )
         self._recargar_historial()
 

@@ -214,9 +214,6 @@ class PersistenciaPostgres(PersistenciaValidacion):
         for clave in claves:
             numeros_excluidos.update(excluidas.get(clave, set()))
 
-        if self._importaciones.existe_hash(preparada.archivo.hash_archivo, cursor):
-            raise ValueError(f'El archivo {nombre_archivo} ya fue importado.')
-
         rechazos = {
             aviso.numero_fila for aviso in preparada.reporte.errores
         } | numeros_excluidos

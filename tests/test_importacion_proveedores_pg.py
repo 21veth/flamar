@@ -205,16 +205,17 @@ def test_guardar_respeta_exclusiones_y_reutiliza_producto():
     assert conexion.estado == 'cerrada'
 
 
-def test_guardar_rechaza_hash_duplicado_y_revierte():
+def test_guardar_acepta_hash_repetido():
     importaciones = ImportacionesFake(hashes={'hash-unico'})
     persistencia, conexion = _persistencia(importaciones)
 
-    with pytest.raises(ValueError, match='ya fue importado'):
-        persistencia.guardar([_preparada()], None, 7)
+    resultados = persistencia.guardar([_preparada()], None, 7)
 
-    assert importaciones.intentos == []
-    assert conexion.confirmaciones == 0
-    assert conexion.reversiones == 1
+    assert len(resultados) == 1
+    assert importaciones.intentos[0][2] == 'hash-unico'
+    assert importaciones.consultas_hash == 0
+    assert conexion.confirmaciones == 1
+    assert conexion.reversiones == 0
     assert conexion.estado == 'cerrada'
 
 

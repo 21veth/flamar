@@ -84,21 +84,57 @@ class CatalogoRepository:
                 cursor.close()
                 conexion.close()
 
-    def crear_producto(self, codigo, nombre, id_categoria, marca, presentacion, cursor=None):
+    def crear_producto(
+        self, codigo, nombre, id_categoria, marca, presentacion, cursor=None,
+        unidad_medida=None, stock_minimo=0, precio_venta=None,
+        fecha_precio=None, fecha_stock=None,
+    ):
         consulta = (
             'INSERT INTO public.productos '
-            '(codigo, nombre, id_categoria, activo, marca, presentacion) '
-            'VALUES (%s, %s, %s, TRUE, %s, %s) RETURNING id_producto'
+            '(codigo, nombre, id_categoria, activo, marca, presentacion, '
+            ' unidad_medida, stock_minimo, precio_venta_actual, '
+            ' fecha_ultimo_precio_venta, fecha_ultimo_stock_minimo) '
+            'VALUES (%s, %s, %s, TRUE, %s, %s, %s, %s, %s, %s, %s) '
+            'RETURNING id_producto'
         )
         propio = cursor is None
         if propio:
             conexion, cursor = self._cursor()
         try:
-            cursor.execute(consulta, (codigo, nombre, id_categoria, marca, presentacion))
+            cursor.execute(consulta, (
+                codigo, nombre, id_categoria, marca, presentacion,
+                unidad_medida, stock_minimo or 0, precio_venta or 0,
+                fecha_precio, fecha_stock,
+            ))
             id_producto = cursor.fetchone()[0]
             if propio:
                 conexion.commit()
             return id_producto
+        finally:
+            if propio:
+                cursor.close()
+                conexion.close()
+
+    def actualizar_producto_ingreso(
+        self, id_producto, unidad_medida, stock_minimo, precio_venta,
+        fecha_ingreso, cursor=None,
+    ):
+        consulta = (
+            'UPDATE public.productos SET unidad_medida = %s, stock_minimo = %s, '
+            'precio_venta_actual = %s, fecha_ultimo_precio_venta = %s, '
+            'fecha_ultimo_stock_minimo = %s WHERE id_producto = %s'
+        )
+        parametros = (
+            unidad_medida, stock_minimo or 0, precio_venta or 0,
+            fecha_ingreso, fecha_ingreso, id_producto,
+        )
+        propio = cursor is None
+        if propio:
+            conexion, cursor = self._cursor()
+        try:
+            cursor.execute(consulta, parametros)
+            if propio:
+                conexion.commit()
         finally:
             if propio:
                 cursor.close()

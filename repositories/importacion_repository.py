@@ -109,6 +109,42 @@ class ImportacionRepository:
                 fila = cursor.fetchone()
                 return fila[0] if fila else None
 
+    def obtener_importacion(
+        self, id_importacion=None, hash_archivo=None, cursor=None, bloquear=False
+    ):
+        condiciones = []
+        parametros = []
+        if id_importacion is not None:
+            condiciones.append('id_importacion = %s')
+            parametros.append(id_importacion)
+        if hash_archivo is not None:
+            condiciones.append('hash_archivo = %s')
+            parametros.append(hash_archivo)
+        if not condiciones:
+            return None
+        consulta = (
+            'SELECT id_importacion, estado, nombre_archivo, hash_archivo '
+            'FROM public.importaciones WHERE ' + ' AND '.join(condiciones) + ' LIMIT 1'
+        )
+        if bloquear:
+            consulta += ' FOR UPDATE'
+        if cursor is not None:
+            cursor.execute(consulta, tuple(parametros))
+            fila = cursor.fetchone()
+        else:
+            with obtener_conexion() as conexion:
+                with conexion.cursor() as cursor_local:
+                    cursor_local.execute(consulta, tuple(parametros))
+                    fila = cursor_local.fetchone()
+        if fila is None:
+            return None
+        return {
+            'id_importacion': fila[0],
+            'estado': fila[1],
+            'nombre_archivo': fila[2],
+            'hash_archivo': fila[3],
+        }
+
     def descartar_importacion(self, id_importacion):
         with obtener_conexion() as conexion:
             with conexion.cursor() as cursor:

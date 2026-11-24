@@ -110,9 +110,17 @@ CREATE TABLE productos (
     activo BOOLEAN NOT NULL DEFAULT TRUE,
     marca VARCHAR(100),
     presentacion VARCHAR(100),
+    unidad_medida VARCHAR(30),
+    stock_minimo INTEGER NOT NULL DEFAULT 0,
+    precio_venta_actual NUMERIC(12,2) NOT NULL DEFAULT 0,
+    fecha_ultimo_precio_venta DATE,
+    fecha_ultimo_stock_minimo DATE,
 
     CONSTRAINT pk_productos PRIMARY KEY (id_producto),
     CONSTRAINT uq_productos_codigo UNIQUE (codigo),
+
+    CONSTRAINT ck_productos_stock_minimo CHECK (stock_minimo >= 0),
+    CONSTRAINT ck_productos_precio_venta CHECK (precio_venta_actual >= 0),
 
     CONSTRAINT fk_productos_categoria
         FOREIGN KEY (id_categoria)
@@ -132,9 +140,9 @@ CREATE TABLE importaciones (
     registros_validos INTEGER NOT NULL DEFAULT 0,
     registros_rechazados INTEGER NOT NULL DEFAULT 0,
     estado VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+    comparacion_eliminada BOOLEAN NOT NULL DEFAULT FALSE,
 
     CONSTRAINT pk_importaciones PRIMARY KEY (id_importacion),
-    CONSTRAINT uq_importaciones_hash UNIQUE (hash_archivo),
 
     CONSTRAINT fk_importaciones_usuario
         FOREIGN KEY (id_usuario)
@@ -149,7 +157,10 @@ CREATE TABLE importaciones (
     ),
 
     CONSTRAINT ck_importaciones_estado CHECK (
-        estado IN ('pendiente', 'procesando', 'completada', 'fallida')
+        estado IN (
+            'pendiente', 'validado', 'con_errores',
+            'procesando', 'completada', 'fallida'
+        )
     ),
 
     CONSTRAINT ck_importaciones_completada CHECK (
@@ -503,6 +514,57 @@ CREATE TABLE detalle_comparacion (
         CHECK (NOT seleccionado_combinada OR oferta_valida)
 );
 
+CREATE TABLE ingresos_inventario (
+    id_ingreso BIGINT GENERATED ALWAYS AS IDENTITY,
+    id_importacion BIGINT NOT NULL,
+    id_proveedor BIGINT NOT NULL,
+    id_comparacion BIGINT,
+    fecha_ingreso DATE NOT NULL,
+    numero_productos INTEGER NOT NULL DEFAULT 0,
+    total_unidades INTEGER NOT NULL DEFAULT 0,
+    observacion TEXT,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT pk_ingresos_inventario PRIMARY KEY (id_ingreso),
+
+    CONSTRAINT fk_ingresos_inventario_importacion
+        FOREIGN KEY (id_importacion) REFERENCES importaciones (id_importacion),
+    CONSTRAINT fk_ingresos_inventario_proveedor
+        FOREIGN KEY (id_proveedor) REFERENCES proveedores (id_proveedor),
+    CONSTRAINT fk_ingresos_inventario_comparacion
+        FOREIGN KEY (id_comparacion) REFERENCES comparaciones (id_comparacion),
+
+    CONSTRAINT ck_ingresos_inventario_numero_productos CHECK (numero_productos >= 0),
+    CONSTRAINT ck_ingresos_inventario_total_unidades CHECK (total_unidades >= 0)
+);
+
+CREATE TABLE detalle_ingreso_inventario (
+    id_detalle_ingreso BIGINT GENERATED ALWAYS AS IDENTITY,
+    id_ingreso BIGINT NOT NULL,
+    id_producto BIGINT NOT NULL,
+    numero_fila_excel INTEGER NOT NULL,
+    cantidad INTEGER NOT NULL,
+    stock_minimo INTEGER NOT NULL DEFAULT 0,
+    precio_compra NUMERIC(12,2) NOT NULL,
+    precio_venta NUMERIC(12,2) NOT NULL,
+    unidad_medida VARCHAR(30),
+    fecha_ingreso DATE NOT NULL,
+
+    CONSTRAINT pk_detalle_ingreso_inventario PRIMARY KEY (id_detalle_ingreso),
+    CONSTRAINT uq_detalle_ingreso_fila UNIQUE (id_ingreso, numero_fila_excel),
+
+    CONSTRAINT fk_detalle_ingreso_ingreso
+        FOREIGN KEY (id_ingreso) REFERENCES ingresos_inventario (id_ingreso),
+    CONSTRAINT fk_detalle_ingreso_producto
+        FOREIGN KEY (id_producto) REFERENCES productos (id_producto),
+
+    CONSTRAINT ck_detalle_ingreso_fila CHECK (numero_fila_excel > 0),
+    CONSTRAINT ck_detalle_ingreso_cantidad CHECK (cantidad > 0),
+    CONSTRAINT ck_detalle_ingreso_stock_minimo CHECK (stock_minimo >= 0),
+    CONSTRAINT ck_detalle_ingreso_precio_compra CHECK (precio_compra > 0),
+    CONSTRAINT ck_detalle_ingreso_precio_venta CHECK (precio_venta > 0)
+);
+
 -- =====================================================
 -- INDICES PARA CONSULTAS Y RELACIONES
 -- Las PRIMARY KEY y UNIQUE ya crean sus propios indices.
@@ -512,6 +574,13 @@ CREATE INDEX idx_productos_categoria
 
 CREATE INDEX idx_importaciones_usuario
     ON importaciones (id_usuario);
+
+CREATE INDEX idx_importaciones_hash
+    ON importaciones (hash_archivo);
+
+CREATE INDEX idx_importaciones_comparacion_pendiente
+    ON importaciones (id_usuario)
+    WHERE comparacion_eliminada = FALSE;
 
 CREATE INDEX idx_errores_importacion_archivo
     ON errores_importacion (id_importacion);
@@ -550,6 +619,18 @@ CREATE INDEX idx_comparaciones_usuario
 
 CREATE INDEX idx_detalle_comparacion_oferta
     ON detalle_comparacion (id_detalle_cotizacion);
+
+CREATE INDEX idx_ingresos_inventario_proveedor
+    ON ingresos_inventario (id_proveedor);
+
+CREATE INDEX idx_ingresos_inventario_fecha
+    ON ingresos_inventario (fecha_ingreso);
+
+CREATE INDEX idx_detalle_ingreso_producto
+    ON detalle_ingreso_inventario (id_producto);
+
+CREATE INDEX idx_detalle_ingreso_fecha
+    ON detalle_ingreso_inventario (fecha_ingreso);
 
 -- =====================================================
 -- VISTA: TOTAL DE CADA TICKET

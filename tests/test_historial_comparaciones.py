@@ -546,7 +546,8 @@ def test_confirmar_borrado_usa_dialogo_blanco(aplicacion, monkeypatch):
     assert 'Sí, borrar' in [
         boton.text() for boton in dialogos[0].findChildren(QPushButton)
     ]
-    assert 'como si nunca se hubiera subido' in dialogos[0].findChild(QLabel).text()
+    assert 'solo esta comparación' in dialogos[0].findChild(QLabel).text()
+    assert 'se conservarán' in dialogos[0].findChild(QLabel).text()
 
 
 def test_historial_no_tiene_boton_nueva_comparacion(aplicacion):
@@ -564,7 +565,7 @@ class _CursorFake:
     def __init__(self):
         self.consultas = []
         self.parametros = []
-        self.resultado = []
+        self.resultado = [(7,)]
         self.rowcount = 1
 
     def __enter__(self):
@@ -577,17 +578,21 @@ class _CursorFake:
         consulta_normalizada = ' '.join(consulta.split())
         self.consultas.append(consulta_normalizada)
         self.parametros.append(parametros)
-        if 'SELECT DISTINCT imp.id_importacion' in consulta_normalizada:
+        if consulta_normalizada.startswith((
+            'SELECT DISTINCT imp.id_importacion',
+            'SELECT i.id_importacion',
+        )):
             self.resultado = [(7,)]
-        elif 'SELECT DISTINCT dcomp.id_comparacion' in consulta_normalizada:
-            self.resultado = [(6,)]
-        elif 'SELECT DISTINCT cot.id_proveedor' in consulta_normalizada:
-            self.resultado = [(3,), (4,)]
         else:
             self.resultado = []
 
     def fetchall(self):
         return self.resultado
+
+    def fetchone(self):
+        if any('to_regclass' in consulta for consulta in self.consultas[-1:]):
+            return ('public.ingresos_inventario',)
+        return None
 
 
 class _ConexionFake:
@@ -610,7 +615,7 @@ class _ConexionFake:
         self.cerrada = True
 
 
-def test_eliminar_borra_todos_los_datos_del_excel(monkeypatch):
+def test_eliminar_borra_solo_la_comparacion_y_marca_importaciones(monkeypatch):
     cursor = _CursorFake()
     conexion = _ConexionFake(cursor)
     monkeypatch.setattr(
@@ -619,20 +624,39 @@ def test_eliminar_borra_todos_los_datos_del_excel(monkeypatch):
 
     assert ComparacionRepository().eliminar(6, 1) == 1
 
-    consultas = ' '.join(cursor.consultas)
+    consultas = '\n'.join(cursor.consultas)
+    assert 'UPDATE public.importaciones SET comparacion_eliminada = TRUE' in consultas
+    assert 'UPDATE public.ingresos_inventario ing SET id_comparacion = NULL' in consultas
+    assert 'DO $' not in consultas
+    assert 'DELETE FROM public.detalle_comparacion' in consultas
+    assert 'DELETE FROM public.comparaciones' in consultas
     for tabla in (
-        'public.detalle_comparacion',
-        'public.comparaciones',
         'public.errores_importacion',
         'public.detalle_cotizacion',
         'public.cotizaciones',
         'public.importaciones',
         'public.proveedores',
     ):
-        assert f'DELETE FROM {tabla}' in consultas
-    assert any(
-        'DELETE FROM public.importaciones' in consulta for consulta in cursor.consultas
-    )
+        assert f'DELETE FROM {tabla}' not in consultas
+    assert 'hash_archivo' not in consultas
+    assert cursor.parametros[1] == ([7], 1)
+    assert cursor.parametros[2] is None
+    assert cursor.parametros[3] == (6, 6, 1)
+    assert cursor.parametros[4] == (6, 1)
+    assert cursor.parametros[5] == (6, 1)
     assert conexion.confirmada
     assert not conexion.revertida
     assert conexion.cerrada
+
+
+def test_importaciones_sin_comparacion_excluye_eliminadas(monkeypatch):
+    cursor = _CursorFake()
+    conexion = _ConexionFake(cursor)
+    monkeypatch.setattr(
+        'repositories.comparacion_repository.obtener_conexion', lambda: conexion
+    )
+
+    assert ComparacionRepository().obtener_importaciones_sin_comparacion(1) == [7]
+
+    assert 'i.comparacion_eliminada = FALSE' in cursor.consultas[0]
+    assert cursor.parametros[0] == (1,)

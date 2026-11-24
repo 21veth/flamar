@@ -5,7 +5,6 @@ import pytest
 
 from services.importacion_proveedores_service import (
     COLUMNS,
-    ArchivoDuplicadoError,
     ContextoValidacion,
     ImportacionProveedoresService,
     combinar_reportes,
@@ -153,7 +152,7 @@ def test_preparar_exige_hoja_catalogo_en_excel(tmp_path):
     )
 
 
-def test_preparar_rechaza_hash_duplicado(tmp_path):
+def test_preparar_acepta_hash_repetido(tmp_path):
     contenido = b'Proveedor,Producto,LimpiaSur,Lejia\n'
     hash_conocido = hashlib.sha256(contenido).hexdigest()
     servicio = _servicio(
@@ -161,8 +160,10 @@ def test_preparar_rechaza_hash_duplicado(tmp_path):
         lector=lambda path: _tabla(list(COLUMNS), []),
     )
 
-    with pytest.raises(ArchivoDuplicadoError):
-        servicio.preparar([_archivo(tmp_path, contenido)])
+    preparadas = servicio.preparar([_archivo(tmp_path, contenido)])
+
+    assert len(preparadas) == 1
+    assert preparadas[0].archivo.hash_archivo == hash_conocido
 
 
 def test_preparar_usa_contexto_con_manejador(tmp_path):

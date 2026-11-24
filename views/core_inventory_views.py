@@ -348,7 +348,7 @@ class ImportDataView(BaseContentView):
         self.tab_layout.setSpacing(0)
         self.tabs = (
             SalesImportTab(self),
-            InventoryImportTab(self),
+            InventoryImportTab(self, sesion),
             SuppliersImportTab(self, sesion),
             CatalogImportTab(self),
         )
