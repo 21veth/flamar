@@ -145,7 +145,7 @@ class ServicioFalso:
         return ImportacionIngresosService.construir_productos_vista_previa(reporte)
 
     def confirmar(self, reporte, id_usuario=None):
-        if self.error_confirmar:
+        if self.error_confirmar is not None:
             raise ValueError(self.error_confirmar)
         return ImportacionIngresosService(contexto=self.contexto).confirmar(
             reporte, id_usuario
@@ -498,11 +498,33 @@ class InventarioEtapa3UiTests(unittest.TestCase):
         with patch('views.import_inventory_view.QMessageBox.critical') as critico:
             tab.confirm_button.click()
 
-        critico.assert_called_once()
+        critico.assert_not_called()
+        mensaje = tab.confirm_status.text()
+        self.assertIn(
+            'Guardado fallido: ValueError: La importación ya no está vigente.',
+            mensaje,
+        )
+        self.assertIn('Vuelve a cargar el archivo para revalidar', mensaje)
+        self.assertEqual(tab.confirm_status.objectName(), 'validationError')
+        self.assertIsNone(tab.reporte)
         self.assertIsNone(tab.confirmacion)
         self.assertIsNone(tab.resultado_guardado)
-        self.assertTrue(tab.confirm_button.isEnabled())
-        self.assertIn('Validación correcta', tab.confirm_status.text())
+        self.assertFalse(tab.confirm_button.isEnabled())
+
+    def test_ui_muestra_detalle_cuando_excepcion_no_tiene_mensaje(self):
+        tab, _ = self._tablero([_fila()], error_confirmar='')
+
+        with patch('views.import_inventory_view.QMessageBox.critical') as critico:
+            tab.confirm_button.click()
+
+        critico.assert_not_called()
+        mensaje = tab.confirm_status.text()
+        self.assertIn(
+            'Guardado fallido: ValueError: sin mensaje del servidor', mensaje
+        )
+        self.assertEqual(tab.confirm_status.objectName(), 'validationError')
+        self.assertIsNone(tab.reporte)
+        self.assertFalse(tab.confirm_button.isEnabled())
 
     def test_ui_guarda_y_muestra_resultado_real(self):
         tab, _ = self._tablero([_fila()])
@@ -511,6 +533,7 @@ class InventarioEtapa3UiTests(unittest.TestCase):
             tab.confirm_button.click()
 
         critico.assert_not_called()
+        self.assertEqual(tab.confirm_status.objectName(), 'validationLead')
         self.assertFalse(tab.result_page.isHidden())
         self.assertEqual(tab.stepper.numbers[2].objectName(), 'stepActive')
         self.assertIn('Ingreso registrado: N.º 123', tab.result_detail.text())
@@ -561,4 +584,7 @@ class InventarioEtapa3UiTests(unittest.TestCase):
         self.assertEqual(tab.preview_summary_values['registros'].text(), '2')
         self.assertEqual(tab.preview_summary_values['validos'].text(), '2')
         self.assertFalse(tab.confirm_button.isEnabled())
-        self.assertIn('Vuelve a cargar el archivo', tab.confirm_status.text())
+        mensaje = tab.confirm_status.text()
+        self.assertIn('Validación con 1 error(es) bloqueante(s)', mensaje)
+        self.assertIn('Fila 3 · Cantidad ingresada: "-5" Error grave', mensaje)
+        self.assertIn('Vuelve a cargar un Excel corregido', mensaje)

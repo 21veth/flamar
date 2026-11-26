@@ -109,6 +109,9 @@ class PersistenciaValidacionIngreso:
     def obtener_ingreso(self, id_ingreso):
         return None
 
+    def listar_ingresos(self, busqueda='', proveedor='', estado='', fecha=''):
+        return ()
+
 
 class ImportacionIngresosService:
     def __init__(self, lector=None, contexto=None, persistencia=None):
@@ -570,3 +573,11 @@ class ImportacionIngresosService:
 
     def obtener_ingreso(self, id_ingreso) -> IngresoGuardado | None:
         return self._persistencia.obtener_ingreso(id_ingreso)
+
+    def listar_ingresos(self, busqueda='', proveedor='', estado='', fecha=''):
+        return self._persistencia.listar_ingresos(
+            busqueda=busqueda,
+            proveedor=proveedor,
+            estado=estado,
+            fecha=fecha,
+        )

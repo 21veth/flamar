@@ -21,6 +21,39 @@ ALTER TABLE productos DROP CONSTRAINT IF EXISTS ck_productos_precio_venta;
 ALTER TABLE productos ADD CONSTRAINT ck_productos_precio_venta
     CHECK (precio_venta_actual >= 0);
 
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'detalle_ingreso_inventario'
+          AND column_name = 'cantidad_ingresada'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'detalle_ingreso_inventario'
+          AND column_name = 'cantidad'
+    ) THEN
+        ALTER TABLE public.detalle_ingreso_inventario
+            RENAME COLUMN cantidad_ingresada TO cantidad;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'detalle_ingreso_inventario'
+          AND column_name = 'precio_venta_archivo'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'detalle_ingreso_inventario'
+          AND column_name = 'precio_venta'
+    ) THEN
+        ALTER TABLE public.detalle_ingreso_inventario
+            RENAME COLUMN precio_venta_archivo TO precio_venta;
+    END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS ingresos_inventario (
     id_ingreso BIGINT GENERATED ALWAYS AS IDENTITY,
     id_importacion BIGINT NOT NULL,
@@ -44,9 +77,26 @@ ALTER TABLE ingresos_inventario
     ADD COLUMN IF NOT EXISTS observacion TEXT,
     ADD COLUMN IF NOT EXISTS creado_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
-ALTER TABLE ingresos_inventario DROP CONSTRAINT IF EXISTS pk_ingresos_inventario;
-ALTER TABLE ingresos_inventario ADD CONSTRAINT pk_ingresos_inventario
-    PRIMARY KEY (id_ingreso);
+DO $$
+DECLARE
+    nombre_constraint TEXT;
+BEGIN
+    SELECT conname INTO nombre_constraint
+    FROM pg_constraint
+    WHERE conrelid = 'public.ingresos_inventario'::regclass
+      AND contype = 'p'
+    LIMIT 1;
+
+    IF nombre_constraint IS NULL THEN
+        ALTER TABLE ingresos_inventario ADD CONSTRAINT pk_ingresos_inventario
+            PRIMARY KEY (id_ingreso);
+    ELSIF nombre_constraint <> 'pk_ingresos_inventario' THEN
+        EXECUTE format(
+            'ALTER TABLE public.ingresos_inventario RENAME CONSTRAINT %I TO pk_ingresos_inventario',
+            nombre_constraint
+        );
+    END IF;
+END $$;
 
 ALTER TABLE ingresos_inventario DROP CONSTRAINT IF EXISTS fk_ingresos_inventario_importacion;
 ALTER TABLE ingresos_inventario ADD CONSTRAINT fk_ingresos_inventario_importacion
@@ -93,9 +143,26 @@ ALTER TABLE detalle_ingreso_inventario
     ADD COLUMN IF NOT EXISTS unidad_medida VARCHAR(30),
     ADD COLUMN IF NOT EXISTS fecha_ingreso DATE NOT NULL;
 
-ALTER TABLE detalle_ingreso_inventario DROP CONSTRAINT IF EXISTS pk_detalle_ingreso_inventario;
-ALTER TABLE detalle_ingreso_inventario ADD CONSTRAINT pk_detalle_ingreso_inventario
-    PRIMARY KEY (id_detalle_ingreso);
+DO $$
+DECLARE
+    nombre_constraint TEXT;
+BEGIN
+    SELECT conname INTO nombre_constraint
+    FROM pg_constraint
+    WHERE conrelid = 'public.detalle_ingreso_inventario'::regclass
+      AND contype = 'p'
+    LIMIT 1;
+
+    IF nombre_constraint IS NULL THEN
+        ALTER TABLE detalle_ingreso_inventario ADD CONSTRAINT pk_detalle_ingreso_inventario
+            PRIMARY KEY (id_detalle_ingreso);
+    ELSIF nombre_constraint <> 'pk_detalle_ingreso_inventario' THEN
+        EXECUTE format(
+            'ALTER TABLE public.detalle_ingreso_inventario RENAME CONSTRAINT %I TO pk_detalle_ingreso_inventario',
+            nombre_constraint
+        );
+    END IF;
+END $$;
 
 ALTER TABLE detalle_ingreso_inventario DROP CONSTRAINT IF EXISTS uq_detalle_ingreso_fila;
 ALTER TABLE detalle_ingreso_inventario ADD CONSTRAINT uq_detalle_ingreso_fila

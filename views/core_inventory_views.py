@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from views.import_catalog_view import CatalogImportTab
-from views.import_inventory_view import InventoryImportTab
+from views.inventario_section_view import InventarioSectionView
 from views.import_sales_view import SalesImportTab
 from views.import_suppliers_view import SuppliersImportTab
 from views.app_theme import zeyver_color, zeyver_stylesheet
@@ -341,14 +341,14 @@ class ImportDataView(BaseContentView):
         self.type_cards = []
         self.body.addLayout(self._types())
 
-        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.tab_container = QWidget()
         self.tab_layout = QVBoxLayout(self.tab_container)
         self.tab_layout.setContentsMargins(0, 0, 0, 0)
         self.tab_layout.setSpacing(0)
         self.tabs = (
             SalesImportTab(self),
-            InventoryImportTab(self, sesion),
+            InventarioSectionView(self, sesion),
             SuppliersImportTab(self, sesion),
             CatalogImportTab(self),
         )

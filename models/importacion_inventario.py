@@ -158,6 +158,14 @@ class IngresoDetalleGuardado:
     precio_venta: Decimal
     unidad_medida: str
     fecha_ingreso: date
+    marca: str = ''
+    presentacion: str = ''
+
+    @property
+    def subtotal(self):
+        if self.precio_compra is None:
+            return Decimal('0.00')
+        return Decimal(self.cantidad) * self.precio_compra
 
 
 @dataclass(frozen=True)
@@ -171,6 +179,22 @@ class IngresoGuardado:
     total_unidades: int
     creado_en: datetime | None
     filas: tuple[IngresoDetalleGuardado, ...] = ()
+    estado: str = ''
+    responsable: str = ''
+    costo_total: Decimal | None = None
+
+
+@dataclass(frozen=True)
+class IngresoHistorial:
+    id_ingreso: int
+    creado_en: datetime | None
+    proveedor: str
+    archivo: str
+    productos: int
+    unidades: int
+    costo_total: Decimal
+    estado: str
+    responsable: str = ''
 
 
 @dataclass(frozen=True)

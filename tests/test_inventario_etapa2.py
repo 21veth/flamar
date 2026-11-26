@@ -436,7 +436,13 @@ class InventarioEtapa2UiTests(unittest.TestCase):
             ['Listo', 'Revisar', 'Advertencia'],
         )
         self.assertFalse(tab.confirm_button.isEnabled())
-        self.assertIn('Vuelve a cargar el archivo', tab.confirm_status.text())
+        mensaje = tab.confirm_status.text()
+        self.assertIn('Validación con 1 error(es) bloqueante(s)', mensaje)
+        self.assertIn('Fila 3 · Cantidad ingresada: "-5" Error grave', mensaje)
+        self.assertIn('Vuelve a cargar un Excel corregido', mensaje)
+        self.assertIn('QPushButton#primaryButton:disabled', tab.styleSheet())
+        tab._confirmar()
+        self.assertEqual(tab.confirm_status.text(), mensaje)
         self.assertEqual(tab.stepper.numbers[1].objectName(), 'stepActive')
 
     def test_ui_sin_errores_habilita_confirmar_y_muestra_resumen(self):

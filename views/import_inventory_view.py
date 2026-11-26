@@ -1,10 +1,12 @@
 """Pestana de importacion de ingresos de inventario."""
 
+import logging
+
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -78,6 +80,7 @@ DETALLE_INGRESO_COLUMNS = (
 INVENTORY_STYLES = zeyver_stylesheet('''
 QLabel#validationHeading { color: #08132d; font-size: 17px; font-weight: 800; }
 QLabel#validationLead { color: #60708f; font-size: 11px; }
+QLabel#validationError { color: #ef334e; font-size: 11px; font-weight: 700; }
 QFrame#summaryCard { background: white; border: 1px solid #dfe5ee; border-radius: 9px; }
 QFrame#summaryDivider { background: #e5e7eb; border: none; min-width: 1px; max-width: 1px; }
 QLabel#confirmSummaryKey { color: #60708f; font-size: 10px; font-weight: 700; }
@@ -86,6 +89,7 @@ QLabel#confirmReadOnly { color: #60708f; font-size: 10px; }
 QLabel#confirmCaption { color: #60708f; font-size: 10px; }
 QLineEdit#confirmSearch { background: white; border: 1px solid #dfe5ee; border-radius: 6px; padding: 7px 10px; font-size: 11px; }
 QComboBox#confirmFilter { background: white; border: 1px solid #dfe5ee; border-radius: 6px; padding: 6px 10px; font-size: 11px; }
+QPushButton#primaryButton:disabled { background: #c7cfda; color: #f4f7fb; }
 ''')
 
 
@@ -119,6 +123,7 @@ class InventoryFileInfoCard(FileInfoCard):
 
 
 class InventoryImportTab(ImportTab):
+    ingreso_guardado = Signal(object)
     TITLE = 'Registro de ingreso de productos'
     SUBTITLE = 'Importa la mercadería recibida por ZEYVER.'
     STEP_TITLES = (
@@ -371,7 +376,7 @@ class InventoryImportTab(ImportTab):
         )
         for valor in self.preview_summary_values.values():
             valor.setText('-')
-        self.confirm_status.clear()
+        self._set_confirm_status('')
         self.confirm_caption.setText('Mostrando 0 de 0 productos · Solo lectura')
         self.confirm_button.setEnabled(False)
         self.confirm_button.setText('Confirmar y guardar')
@@ -435,12 +440,60 @@ class InventoryImportTab(ImportTab):
             valor.setText('-')
         self.result_back.setEnabled(False)
 
+    def _set_confirm_status(self, mensaje, error=False):
+        object_name = 'validationError' if error else 'validationLead'
+        self.confirm_status.setObjectName(object_name)
+        self.confirm_status.setText(mensaje)
+        self.confirm_status.style().unpolish(self.confirm_status)
+        self.confirm_status.style().polish(self.confirm_status)
+
+    @staticmethod
+    def _detalle_error(exc):
+        texto = str(exc).strip()
+        if not texto:
+            diagnostico = getattr(exc, 'diag', None)
+            texto = str(getattr(diagnostico, 'message', '') or '').strip()
+        if not texto:
+            texto = 'sin mensaje del servidor'
+        return f'{type(exc).__name__}: {texto}'
+
+    @staticmethod
+    def _mensaje_errores(reporte):
+        errores = list(reporte.errores)
+        if not errores:
+            return ''
+        detalles = []
+        for aviso in errores[:3]:
+            fila = f'Fila {aviso.numero_fila} · ' if aviso.numero_fila else ''
+            valor = (
+                f' "{aviso.valor_original}"'
+                if aviso.valor_original not in (None, '') else ''
+            )
+            detalles.append(f'{fila}{aviso.campo}:{valor} {aviso.problema}')
+        if len(errores) > 3:
+            detalles.append(f'+{len(errores) - 3} más')
+        return (
+            f'Validación con {len(errores)} error(es) bloqueante(s): '
+            + '; '.join(detalles)
+            + '. Vuelve a cargar un Excel corregido para continuar.'
+        )
+
+    def _mensaje_bloqueo(self, reporte):
+        if reporte is None:
+            return 'No hay una validación disponible. Carga el archivo de nuevo.'
+        if not reporte.es_valido:
+            return self._mensaje_errores(reporte)
+        if not reporte.filas_validas:
+            return 'No hay productos válidos para guardar. Revisa el Excel y vuelve a cargarlo.'
+        return 'No se puede guardar este ingreso.'
+
     def _confirmar(self):
         if (
             self.reporte is None
             or not self.reporte.es_valido
             or not self.reporte.filas_validas
         ):
+            self._set_confirm_status(self._mensaje_bloqueo(self.reporte), error=True)
             return
         id_usuario = getattr(self.sesion, 'id_usuario', None)
         self.confirm_button.setEnabled(False)
@@ -448,9 +501,17 @@ class InventoryImportTab(ImportTab):
         try:
             resultado = self.servicio.confirmar_y_guardar(self.reporte, id_usuario)
         except Exception as exc:
-            self.confirm_button.setEnabled(True)
+            logging.getLogger(__name__).exception('No se pudo guardar el ingreso')
+            detalle = self._detalle_error(exc)
+            self.reporte = None
+            self.confirmacion = None
+            self._set_confirm_status(
+                f'Guardado fallido: {detalle}. '
+                'Vuelve a cargar el archivo para revalidar.',
+                error=True,
+            )
+            self.confirm_button.setEnabled(False)
             self.confirm_button.setText('Confirmar y guardar')
-            QMessageBox.critical(self, 'No se pudo guardar el ingreso', str(exc))
             return
 
         self.confirm_button.setEnabled(True)
@@ -470,6 +531,7 @@ class InventoryImportTab(ImportTab):
         self.result_metric_values['estado'].setText(resultado.estado)
         self.result_back.setEnabled(True)
         self._mostrar_paso(3)
+        self.ingreso_guardado.emit(resultado.id_ingreso)
 
     def _ver_ingreso(self):
         resultado = self.resultado_guardado
@@ -604,17 +666,20 @@ class InventoryImportTab(ImportTab):
         self.validation_status.style().polish(self.validation_status)
 
         if not reporte.es_valido:
-            self.confirm_status.setText(
-                'Vuelve a cargar el archivo para continuar.'
+            self._set_confirm_status(self._mensaje_errores(reporte), error=True)
+        elif not reporte.filas_validas:
+            self._set_confirm_status(
+                'No hay productos válidos para guardar. Revisa el Excel y vuelve a cargarlo.',
+                error=True,
             )
         elif reporte.total_advertencias:
             sufijo = 'advertencia' if reporte.total_advertencias == 1 else 'advertencias'
-            self.confirm_status.setText(
+            self._set_confirm_status(
                 f'Validación correcta con {reporte.total_advertencias} {sufijo}. '
                 'El archivo está listo para registrarse.'
             )
         else:
-            self.confirm_status.setText(
+            self._set_confirm_status(
                 'Validación correcta. El archivo está listo para registrarse.'
             )
 

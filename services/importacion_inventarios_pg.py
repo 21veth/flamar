@@ -314,3 +314,11 @@ class PersistenciaPostgresIngresos(PersistenciaValidacionIngreso):
         if id_ingreso is None:
             return None
         return self._ingresos.obtener_ingreso(id_ingreso)
+
+    def listar_ingresos(self, busqueda='', proveedor='', estado='', fecha=''):
+        return self._ingresos.listar(
+            busqueda=busqueda,
+            proveedor=proveedor,
+            estado=estado,
+            fecha=fecha,
+        )
